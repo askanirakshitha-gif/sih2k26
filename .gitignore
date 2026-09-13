@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node & Frontend
+node_modules/
+**/node_modules/
+.vite/
+**/.vite/
+dist/
+build/
+medikiosk/backend/uploads/*
+!medikiosk/backend/uploads/.gitkeep
