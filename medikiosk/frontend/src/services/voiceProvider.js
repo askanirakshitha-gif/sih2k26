@@ -60,7 +60,7 @@ export class BrowserSpeechProvider extends VoiceProvider {
       this.activeRecognition = new this.recognitionClass();
       this.activeRecognition.continuous = false;
       this.activeRecognition.interimResults = true;
-      this.activeRecognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+      this.activeRecognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
 
       this.activeRecognition.onstart = () => {
         this.isListening = true;
@@ -118,12 +118,16 @@ export class BrowserSpeechProvider extends VoiceProvider {
       this.cancelSpeech();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+      utterance.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
       utterance.rate = 0.95; // Clear natural cadence for patients
 
       // Attempt to pick a natural regional voice if installed
       const voices = window.speechSynthesis.getVoices();
-      const matchVoice = voices.find(v => language === 'hi' ? v.lang.includes('hi') : (v.lang.includes('en-IN') || v.lang.includes('en-GB')));
+      const matchVoice = voices.find(v => {
+        if (language === 'hi') return v.lang.includes('hi');
+        if (language === 'kn') return v.lang.includes('kn');
+        return v.lang.includes('en-IN') || v.lang.includes('en-GB');
+      });
       if (matchVoice) {
         utterance.voice = matchVoice;
       }

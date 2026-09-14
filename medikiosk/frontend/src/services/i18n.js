@@ -176,6 +176,93 @@ export const translations = {
     // Doctor Portal Toggle
     doctorPortalBtn: "डॉक्टर वर्कस्टेशन खोलें",
     kioskModeBtn: "रोगी कियोस्क पर वापस जाएं"
+  },
+
+  kn: {
+    appTitle: "ಮೆಡಿಕಿಯೋಸ್ಕ್",
+    tagline: "OPD ರೋಗಿಗಳ ಕೇಸ್-ಟೇಕಿಂಗ್ ಮತ್ತು ಟ್ರಯೇಜ್ ಕಿಯೋಸ್ಕ್",
+    ministry: "ಆಯುಷ್ ಸಚಿವಾಲಯ • ಭಾರತ ಸರ್ಕಾರ",
+    emergencyContact: "ಸಿಬ್ಬಂದಿ ಎಚ್ಚರಿಕೆ: ಕೊಠಡಿ 4 ತುರ್ತುಸ್ಥಿತಿ",
+    
+    // Steps
+    stepLang: "ಭಾಷೆ",
+    stepSystem: "ವೈದ್ಯಕೀಯ ವ್ಯವಸ್ಥೆ",
+    stepPatient: "ರೋಗಿಯ ವಿವರ",
+    stepConsent: "ಸಮ್ಮತಿ",
+    stepQuestions: "ಕೇಸ್-ಟೇಕಿಂಗ್",
+    stepDocs: "ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ಗಳು",
+    stepDone: "OPD ಟೋಕನ್",
+    
+    // Language Selection Screen
+    selectLanguageTitle: "ನಿಮ್ಮ ಆದ್ಯತೆಯ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    selectLanguageSubtitle: "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ (ಆಯ್ಕೆ ಮಾಡಲು ಸ್ಪರ್ಶಿಸಿ)",
+    continueBtn: "ಮುಂದುವರಿಯಿರಿ",
+    
+    // Clinical System Selection
+    selectSystemTitle: "ಸಮಾಲೋಚನಾ ವಿಭಾಗವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    selectSystemSubtitle: "ನೀವು ಇಂದು ಸಮಾಲೋಚಿಸಲು ಬಯಸುವ ಹೊರರೋಗಿ (OPD) ವಿಭಾಗವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    allopathyTitle: "ಅಲೋಪತಿ (ಆಧುನಿಕ ವೈದ್ಯಕೀಯ)",
+    allopathyDesc: "ಸಾಕ್ಷ್ಯಾಧಾರಿತ ಚಿಕಿತ್ಸೆ, ಎದೆನೋವು ತಪಾಸಣೆ ಮತ್ತು ತುರ್ತು OPD ಮೌಲ್ಯಮಾಪನ",
+    ayushTitle: "ಆಯುಷ್ (ಆಯುರ್ವೇದ ಮತ್ತು ಸಾಂಪ್ರದಾಯಿಕ)",
+    ayushDesc: "ಸಮಗ್ರ ಆರೋಗ್ಯ ಮೌಲ್ಯಮಾಪನ, ದಶವಿಧ ಪರೀಕ್ಷೆ, ಪ್ರಕೃತಿ, ಅಗ್ನಿ ಮತ್ತು ಜೀವನಶೈಲಿ ಪರೀಕ್ಷೆ",
+    
+    // Patient ID Screen
+    patientIdTitle: "ರೋಗಿಯ ಗುರುತಿಸುವಿಕೆ",
+    patientIdSubtitle: "ಈಗಾಗಲೇ ನೋಂದಾಯಿತ ರೋಗಿಯನ್ನು ಆಯ್ಕೆಮಾಡಿ ಅಥವಾ ನಿಮ್ಮ ಆಭಾ (ABHA) ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ",
+    demoPatientLabel: "OPD ಕಿಯೋಸ್ಕ್ಗಾಗಿ ಡೆಮೊ ರೋಗಿಯನ್ನು ಆಯ್ಕೆಮಾಡಿ:",
+    orAbhaLabel: "ಅಥವಾ ಆಭಾ / ಆಧಾರ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ:",
+    newPatientBtn: "ಹೊಸ ರೋಗಿ ನೋಂದಣಿ",
+    fullNameLabel: "ಪೂರ್ಣ ಹೆಸರು",
+    ageLabel: "ವಯಸ್ಸು",
+    genderLabel: "ಲಿಂಗ",
+    phoneLabel: "ಮೊಬೈಲ್ ಸಂಖ್ಯೆ",
+    
+    // Consent Screen
+    consentTitle: "ರೋಗಿಯ ಸಮ್ಮತಿ ಮತ್ತು ಗೌಪ್ಯತೆ ಸೂಚನೆ",
+    consentSubtitle: "ಆಯುಷ್ಮಾನ್ ಭಾರತ್ ಡಿಜಿಟಲ್ ಮಿಷನ್ (ABDM) ಮಾರ್ಗಸೂಚಿಗಳ ಅಡಿಯಲ್ಲಿ",
+    consentText1: "ಈ ಮೆಡಿಕಿಯೋಸ್ಕ್ ಟರ್ಮಿನಲ್ ಮೂಲಕ ನನ್ನ ಆರೋಗ್ಯ ಲಕ್ಷಣಗಳು, ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ ಮತ್ತು ದಾಖಲೆಗಳನ್ನು ಹಂಚಿಕೊಳ್ಳಲು ನಾನು ಸ್ವಯಂಪ್ರೇರಿತರಾಗಿ ಸಮ್ಮತಿಸುತ್ತೇನೆ.",
+    consentText2: "ಸಂಗ್ರಹಿಸಿದ ವೈದ್ಯಕೀಯ ಮಾಹಿತಿಯನ್ನು ಹಾಜರಾಗುವ OPD ವೈದ್ಯರ ಪರಿಶೀಲನೆ ಮತ್ತು ದೃಢೀಕರಣಕ್ಕಾಗಿ ಪ್ರಸ್ತುತಪಡಿಸಲಾಗುತ್ತದೆ.",
+    consentText3: "ನನ್ನ ಸಮ್ಮತಿಯೊಂದಿಗೆ ಡಿಜಿಟಲ್ ದಾಖಲೆಗಳನ್ನು FHIR ಮಾನದಂಡಗಳಲ್ಲಿ ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆಗೆ (HIS) ಸುರಕ್ಷಿತವಾಗಿ ರವಾನಿಸಬಹುದು.",
+    consentCheckbox: "ನಾನು ನಿಯಮಗಳನ್ನು ಅರ್ಥಮಾಡಿಕೊಂಡಿದ್ದೇನೆ ಮತ್ತು ಸಮಾಲೋಚನೆಗೆ ಒಪ್ಪುತ್ತೇನೆ.",
+    agreeContinueBtn: "ನಾನು ಒಪ್ಪುತ್ತೇನೆ ಮತ್ತು ಸಮಾಲೋಚನೆ ಪ್ರಾರಂಭಿಸಿ",
+    
+    // Kiosk Question Screen
+    questionProgress: "ಪ್ರಶ್ನೆ",
+    of: "ರಲ್ಲಿ",
+    tapToSpeak: "ಮಾತನಾಡಿ ಉತ್ತರಿಸಲು ಸ್ಪರ್ಶಿಸಿ (ಧ್ವನಿ)",
+    listening: "ಕೇಳಿಸಿಕೊಳ್ಳುತ್ತಿದ್ದೇವೆ... ದಯವಿಟ್ಟು ಸ್ಪಷ್ಟವಾಗಿ ಮಾತನಾಡಿ",
+    stopListening: "ಮಾತನಾಡುವುದು ಮುಕ್ತಾಯ",
+    replayQuestion: "ಪ್ರಶ್ನೆಯನ್ನು ಆಲಿಸಿ (ಆಡಿಯೋ)",
+    recognizedText: "ಗುರುತಿಸಲಾದ ಧ್ವನಿ:",
+    typeAnswerPlaceholder: "ಅಥವಾ ನಿಮ್ಮ ಉತ್ತರವನ್ನು ಇಲ್ಲಿ ಟೈಪ್ ಮಾಡಿ...",
+    submitAnswerBtn: "ಮುಂದಿನ ಪ್ರಶ್ನೆ",
+    backBtn: "ಹಿಂದೆ",
+    emergencyAlertBadge: "ತುರ್ತು ಎಚ್ಚರಿಕೆ ಸೂಚನೆ ಕಂಡುಬಂದಿದೆ",
+    
+    // Document Upload Screen
+    docUploadTitle: "ಹಿಂದಿನ ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳನ್ನು ಅಪ್ಲೋಡ್ ಮಾಡಿ",
+    docUploadSubtitle: "ಹಿಂದಿನ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್, ರಕ್ತ ಪರೀಕ್ಷಾ ವರದಿ ಅಥವಾ ಡಿಸ್ಚಾರ್ಜ್ ಸಾರಾಂಶವನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ಅಥವಾ ಅಪ್ಲೋಡ್ ಮಾಡಿ",
+    uploadCardText: "ನಿಮ್ಮ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅಥವಾ ವರದಿಯನ್ನು ಅಪ್ಲೋಡ್ ಮಾಡಲು ಇಲ್ಲಿ ಸ್ಪರ್ಶಿಸಿ",
+    supportedFormats: "ಬೆಂಬಲಿತ ಸ್ವರೂಪಗಳು: JPG, PNG, PDF (ಗರಿಷ್ಠ 15MB)",
+    docTypePrescription: "OPD ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್",
+    docTypeLab: "ರಕ್ತ / ಲ್ಯಾಬ್ ವರದಿ",
+    docTypeDischarge: "ಡಿಸ್ಚಾರ್ಜ್ ಸಾರಾಂಶ",
+    uploadingDoc: "ದಾಖಲೆಯನ್ನು ಡಿಜಿಟೈಜ್ ಮತ್ತು OCR ಪ್ರಕ್ರಿಯೆಗೊಳಿಸಲಾಗುತ್ತಿದೆ...",
+    docUploadedSuccess: "ದಾಖಲೆಯನ್ನು ಯಶಸ್ವಿಯಾಗಿ ಡಿಜಿಟೈಜ್ ಮಾಡಲಾಗಿದೆ!",
+    skipDocBtn: "ದಾಖಲೆಗಳಿಲ್ಲ (OPD ಟೋಕನ್ಗೆ ಮುಂದುವರಿಯಿರಿ)",
+    finishDocBtn: "OPD ಟೋಕನ್ಗೆ ಮುಂದುವರಿಯಿರಿ",
+    extractedDataTitle: "ದಾಖಲೆಯಿಂದ ಪಡೆದ ವೈದ್ಯಕೀಯ ವಿವರಗಳು (OCR):",
+    
+    // Done Screen
+    doneTitle: "ಕೇಸ್-ಟೇಕಿಂಗ್ ಯಶಸ್ವಿಯಾಗಿ ಪೂರ್ಣಗೊಂಡಿದೆ",
+    doneSubtitle: "ನಿಮ್ಮ ಆರೋಗ್ಯ ಇತಿಹಾಸವನ್ನು ಡಿಜಿಟೈಜ್ ಮಾಡಿ ವೈದ್ಯರ ಕಂಪ್ಯೂಟರ್‌ಗೆ ಕಳುಹಿಸಲಾಗಿದೆ.",
+    opdTokenLabel: "ನಿಮ್ಮ OPD ಟೋಕನ್ ಸಂಖ್ಯೆ:",
+    proceedInstructions: "ದಯವಿಟ್ಟು ಕಾಯುವ ಕೊಠಡಿ 'B' ನಲ್ಲಿ ಆಸೀನರಾಗಿ. ವೈದ್ಯರು ಸಿದ್ಧರಾದಾಗ ನಿಮ್ಮನ್ನು ಕೊಠಡಿ 4ಕ್ಕೆ ಕರೆಯಲಾಗುವುದು.",
+    startNewSession: "ಹೊಸ ರೋಗಿಯ ಸೆಷನ್ ಪ್ರಾರಂಭಿಸಿ",
+    
+    // Doctor Portal Toggle
+    doctorPortalBtn: "ವೈದ್ಯರ ವರ್ಕ್‌ಸ್ಟೇಷನ್ ತೆರೆಯಿರಿ",
+    kioskModeBtn: "ರೋಗಿ ಕಿಯೋಸ್ಕ್‌ಗೆ ಹಿಂತಿರುಗಿ"
   }
 };
 

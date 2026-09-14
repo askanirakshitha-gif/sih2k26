@@ -192,7 +192,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
     }
 
     if (!finalAnswer && currentQuestion.required) {
-      alert(language === 'hi' ? 'कृपया आगे बढ़ने से पहले उत्तर चुनें या बोलें।' : 'Please select or speak an answer before continuing.');
+      alert(language === 'hi' ? 'कृपया आगे बढ़ने से पहले उत्तर चुनें या बोलें।' : language === 'kn' ? 'ದಯವಿಟ್ಟು ಮುಂದುವರಿಯುವ ಮೊದಲು ಉತ್ತರವನ್ನು ಆರಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ.' : 'Please select or speak an answer before continuing.');
       return;
     }
 
@@ -291,9 +291,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
         {/* STEP 1: LANGUAGE SELECTION */}
         {/* ------------------------------------------------------------------ */}
         {step === 'LANG' && (
-          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-slate-200 text-center max-w-3xl mx-auto w-full fade-in">
+          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-slate-200 text-center max-w-4xl mx-auto w-full fade-in">
             <span className="inline-block px-4 py-1.5 rounded-full bg-sky-50 text-sky-700 font-bold text-sm mb-4 border border-sky-200">
-              {t('stepLang')} / भाषा
+              {t('stepLang')}
             </span>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-2">
               {t('selectLanguageTitle')}
@@ -302,20 +302,20 @@ export default function KioskApp({ onSwitchToDoctor }) {
               {t('selectLanguageSubtitle')}
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
               <button
                 onClick={() => { setLanguage('en'); setStep('SYSTEM'); }}
-                className={`p-8 rounded-2xl border-4 text-left kiosk-touch-button transition-all flex flex-col justify-between h-48 ${
+                className={`p-6 rounded-2xl border-4 text-left kiosk-touch-button transition-all flex flex-col justify-between h-48 ${
                   language === 'en'
                     ? 'border-sky-600 bg-sky-50/50 shadow-md ring-4 ring-sky-100'
                     : 'border-slate-200 hover:border-slate-300 bg-white'
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <span className="text-3xl font-black text-slate-800">English</span>
+                  <span className="text-2xl sm:text-3xl font-black text-slate-800">English</span>
                   <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 bg-sky-100 text-sky-800 rounded">EN</span>
                 </div>
-                <p className="text-slate-500 text-sm">
+                <p className="text-slate-500 text-xs sm:text-sm">
                   Proceed with clinical questions in English.
                 </p>
                 <div className="text-sky-600 font-bold text-sm flex items-center">
@@ -325,21 +325,41 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
               <button
                 onClick={() => { setLanguage('hi'); setStep('SYSTEM'); }}
-                className={`p-8 rounded-2xl border-4 text-left kiosk-touch-button transition-all flex flex-col justify-between h-48 ${
+                className={`p-6 rounded-2xl border-4 text-left kiosk-touch-button transition-all flex flex-col justify-between h-48 ${
                   language === 'hi'
                     ? 'border-sky-600 bg-sky-50/50 shadow-md ring-4 ring-sky-100'
                     : 'border-slate-200 hover:border-slate-300 bg-white'
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <span className="text-3xl font-black text-slate-800">हिंदी</span>
+                  <span className="text-2xl sm:text-3xl font-black text-slate-800">हिंदी</span>
                   <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 bg-amber-100 text-amber-800 rounded">HI</span>
                 </div>
-                <p className="text-slate-500 text-sm">
+                <p className="text-slate-500 text-xs sm:text-sm">
                   हिंदी भाषा में ओपीडी परामर्श और प्रश्नोत्तरी शुरू करें।
                 </p>
                 <div className="text-sky-600 font-bold text-sm flex items-center">
                   हिंदी चुनें <ChevronRight className="w-4 h-4 ml-1" />
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setLanguage('kn'); setStep('SYSTEM'); }}
+                className={`p-6 rounded-2xl border-4 text-left kiosk-touch-button transition-all flex flex-col justify-between h-48 ${
+                  language === 'kn'
+                    ? 'border-sky-600 bg-sky-50/50 shadow-md ring-4 ring-sky-100'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <span className="text-2xl sm:text-3xl font-black text-slate-800">ಕನ್ನಡ</span>
+                  <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 bg-emerald-100 text-emerald-800 rounded">KN</span>
+                </div>
+                <p className="text-slate-500 text-xs sm:text-sm">
+                  ಕನ್ನಡ ಭಾಷೆಯಲ್ಲಿ OPD ಸಮಾಲೋಚನೆ ಮತ್ತು ಪ್ರಶ್ನೋತ್ತರವನ್ನು ಪ್ರಾರಂಭಿಸಿ.
+                </p>
+                <div className="text-sky-600 font-bold text-sm flex items-center">
+                  ಕನ್ನಡವನ್ನು ಆರಿಸಿ <ChevronRight className="w-4 h-4 ml-1" />
                 </div>
               </button>
             </div>
@@ -388,7 +408,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                   </p>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-200/80 flex items-center justify-between text-sky-700 font-bold text-sm">
-                  <span>Demo: Acute Chest Pain</span>
+                  <span>{language === 'hi' ? 'डेमो: तीव्र सीने का दर्द' : language === 'kn' ? 'ಡೆಮೊ: ತೀವ್ರ ಎದೆ ನೋವು' : 'Demo: Acute Chest Pain'}</span>
                   <ChevronRight className="w-5 h-5" />
                 </div>
               </button>
@@ -414,7 +434,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                   </p>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-200/80 flex items-center justify-between text-teal-700 font-bold text-sm">
-                  <span>Dashavidha Pariksha</span>
+                  <span>{language === 'hi' ? 'दशविध परीक्षा' : language === 'kn' ? 'ದಶವಿಧ ಪರೀಕ್ಷೆ' : 'Dashavidha Pariksha'}</span>
                   <ChevronRight className="w-5 h-5" />
                 </div>
               </button>
@@ -450,7 +470,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                   !isNewPatient ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-600'
                 }`}
               >
-                {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : 'Existing Demo Patients'}
+                {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : language === 'kn' ? 'ನೋಂದಾಯಿತ ಡೆಮೊ ರೋಗಿಗಳು' : 'Existing Demo Patients'}
               </button>
               <button
                 onClick={() => setIsNewPatient(true)}
@@ -484,7 +504,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                       <div>
                         <div className="font-bold text-slate-900 text-base">{p.full_name}</div>
                         <div className="text-xs text-slate-500">
-                          {p.age} Yrs • {p.gender} • ABHA: <span className="font-mono text-slate-700">{p.abha_id}</span>
+                          {p.age} {language === 'hi' ? 'वर्ष' : language === 'kn' ? 'ವರ್ಷ' : 'Yrs'} • {language === 'kn' ? (p.gender === 'Male' ? 'ಪುರುಷ' : p.gender === 'Female' ? 'ಮಹಿಳೆ' : 'ಇತರ') : language === 'hi' ? (p.gender === 'Male' ? 'पुरुष' : p.gender === 'Female' ? 'महिला' : 'अन्य') : p.gender} • ABHA: <span className="font-mono text-slate-700">{p.abha_id}</span>
                         </div>
                       </div>
                     </div>
@@ -523,9 +543,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
                     onChange={(e) => setNewPatientForm({ ...newPatientForm, gender: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white"
                   >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
+                    <option value="Male">{language === 'hi' ? 'पुरुष' : language === 'kn' ? 'ಪುರುಷ' : 'Male'}</option>
+                    <option value="Female">{language === 'hi' ? 'महिला' : language === 'kn' ? 'ಮಹಿಳೆ' : 'Female'}</option>
+                    <option value="Other">{language === 'hi' ? 'अन्य' : language === 'kn' ? 'ಇತರ' : 'Other'}</option>
                   </select>
                 </div>
                 <div>
@@ -639,7 +659,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md border border-sky-200">
-                    {system === 'ayush' ? 'AYUSH Dashavidha' : 'Allopathy OPD'} • {currentQuestion.clinicalField}
+                    {system === 'ayush' ? (language === 'hi' ? 'आयुष दशविध' : language === 'kn' ? 'ಆಯುಷ್ ದಶವಿಧ' : 'AYUSH Dashavidha') : (language === 'hi' ? 'एलोपैथी ओपीडी' : language === 'kn' ? 'ಅಲೋಪತಿ OPD' : 'Allopathy OPD')} • {currentQuestion.clinicalField}
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2 leading-snug">
                     {currentQuestion.text}
@@ -686,7 +706,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                       )}
                     </button>
                     <span className="text-xs text-slate-500 font-medium">
-                      {isListening ? t('listening') : '(Microphone input ready)'}
+                      {isListening ? t('listening') : (language === 'hi' ? '(माइक तैयार है)' : language === 'kn' ? '(ಮೈಕ್ರೊಫೋನ್ ಸಿದ್ಧವಾಗಿದೆ)' : '(Microphone input ready)')}
                     </span>
                   </div>
 
@@ -737,7 +757,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                         : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
                     }`}
                   >
-                    {language === 'hi' ? 'हाँ (YES)' : 'YES'}
+                    {language === 'hi' ? 'हाँ (YES)' : language === 'kn' ? 'ಹೌದು (YES)' : 'YES'}
                   </button>
 
                   <button
@@ -748,7 +768,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                         : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
                     }`}
                   >
-                    {language === 'hi' ? 'नहीं (NO)' : 'NO'}
+                    {language === 'hi' ? 'नहीं (NO)' : language === 'kn' ? 'ಇಲ್ಲ (NO)' : 'NO'}
                   </button>
                 </div>
               )}
@@ -791,7 +811,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                 <div className="my-8 bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center">
                   <div className="text-5xl font-black text-sky-700 mb-2">{numberInput} / 10</div>
                   <p className="text-sm font-semibold text-slate-500 mb-6">
-                    {numberInput >= 8 ? '🚨 Severe Pain (High Priority Triage)' : numberInput >= 5 ? 'Moderate Pain' : 'Mild Discomfort'}
+                    {numberInput >= 8 ? (language === 'hi' ? '🚨 अत्यधिक दर्द (तत्काल प्राथमिकता)' : language === 'kn' ? '🚨 ತೀವ್ರ ನೋವು (ತುರ್ತು ಆದ್ಯತೆ)' : '🚨 Severe Pain (High Priority Triage)') : numberInput >= 5 ? (language === 'hi' ? 'मध्यम दर्द' : language === 'kn' ? 'ಮಧ್ಯಮ ನೋವು' : 'Moderate Pain') : (language === 'hi' ? 'हल्का दर्द' : language === 'kn' ? 'ಸೌಮ್ಯ ನೋವು' : 'Mild Discomfort')}
                   </p>
                   <input
                     type="range"
@@ -803,9 +823,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
                     className="w-full h-4 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-600"
                   />
                   <div className="flex justify-between text-xs font-bold text-slate-400 mt-2 px-1">
-                    <span>1 (Mild)</span>
-                    <span>5 (Moderate)</span>
-                    <span>10 (Unbearable)</span>
+                    <span>1 ({language === 'hi' ? 'हल्का' : language === 'kn' ? 'ಕಡಿಮೆ' : 'Mild'})</span>
+                    <span>5 ({language === 'hi' ? 'मध्यम' : language === 'kn' ? 'ಮಧ್ಯಮ' : 'Moderate'})</span>
+                    <span>10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Unbearable'})</span>
                   </div>
                 </div>
               )}
@@ -912,18 +932,18 @@ export default function KioskApp({ onSwitchToDoctor }) {
                         {doc.fileName} ({doc.documentType})
                       </span>
                       <span className="text-emerald-600 flex items-center">
-                        <CheckCircle2 className="w-4 h-4 mr-1" /> Digitized
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> {language === 'hi' ? 'डिजिटाइज़्ड' : language === 'kn' ? 'ಡಿಜಿಟೈಸ್ ಮಾಡಲಾಗಿದೆ' : 'Digitized'}
                       </span>
                     </div>
 
                     {doc.extractions?.diagnoses?.length > 0 && (
                       <p className="text-slate-600">
-                        <strong>Diagnoses:</strong> {doc.extractions.diagnoses.join(', ')}
+                        <strong>{language === 'hi' ? 'निदान:' : language === 'kn' ? 'ರೋಗನಿರ್ಣಯ:' : 'Diagnoses:'}</strong> {doc.extractions.diagnoses.join(', ')}
                       </p>
                     )}
                     {doc.extractions?.medications?.length > 0 && (
                       <p className="text-slate-600 mt-1">
-                        <strong>Medications:</strong> {doc.extractions.medications.map(m => `${m.name} (${m.dosage})`).join(', ')}
+                        <strong>{language === 'hi' ? 'दवाएं:' : language === 'kn' ? 'ಔಷಧಿಗಳು:' : 'Medications:'}</strong> {doc.extractions.medications.map(m => `${m.name} (${m.dosage})`).join(', ')}
                       </p>
                     )}
                   </div>
@@ -974,7 +994,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                 {opdToken || 'OPD-101'}
               </div>
               <div className="text-xs text-slate-500 mt-2">
-                Patient: <span className="font-bold text-slate-700">{selectedPatient?.full_name || 'Ramesh Sharma'}</span> | System: <span className="uppercase font-bold text-sky-700">{system}</span>
+                {language === 'hi' ? 'रोगी' : language === 'kn' ? 'ರೋಗಿ' : 'Patient'}: <span className="font-bold text-slate-700">{selectedPatient?.full_name || 'Ramesh Sharma'}</span> | {language === 'hi' ? 'पद्धति' : language === 'kn' ? 'ವಿಭಾಗ' : 'System'}: <span className="uppercase font-bold text-sky-700">{system}</span>
               </div>
             </div>
 
@@ -1016,7 +1036,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
           className="inline-flex items-center space-x-2 text-xs font-bold text-sky-700 hover:text-sky-900 px-4 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 transition"
         >
           <Stethoscope className="w-4 h-4" />
-          <span>Switch to Doctor OPD Workstation (View Case Records & FHIR)</span>
+          <span>{language === 'hi' ? 'डॉक्टर ओपीडी वर्कस्टेशन पर जाएं (केस रिकॉर्ड और FHIR देखें)' : language === 'kn' ? 'ವೈದ್ಯರ OPD ವರ್ಕ್‌ಸ್ಟೇಷನ್‌ಗೆ ಬದಲಾಯಿಸಿ (ಕೇಸ್ ದಾಖಲೆಗಳು ಮತ್ತು FHIR ವೀಕ್ಷಿಸಿ)' : 'Switch to Doctor OPD Workstation (View Case Records & FHIR)'}</span>
         </button>
       </footer>
 

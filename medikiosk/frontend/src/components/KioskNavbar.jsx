@@ -43,7 +43,7 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
           {opdToken && (
             <div className="hidden md:flex items-center space-x-1.5 bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-800">
               <UserCheck className="w-4 h-4 text-sky-600" />
-              <span>Token: <strong className="text-sky-700 font-bold">{opdToken}</strong></span>
+              <span>{language === 'hi' ? 'टोकन' : language === 'kn' ? 'ಟೋಕನ್' : 'Token'}: <strong className="text-sky-700 font-bold">{opdToken}</strong></span>
             </div>
           )}
 
@@ -68,6 +68,16 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
               }`}
             >
               हिंदी
+            </button>
+            <button
+              onClick={() => onLanguageChange('kn')}
+              className={`px-3 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-colors ${
+                language === 'kn'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              ಕನ್ನಡ
             </button>
           </div>
 
