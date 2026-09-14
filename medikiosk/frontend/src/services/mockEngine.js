@@ -3,6 +3,7 @@
  * Provides offline question DAG sequencing, red-flag evaluation, FHIR bundle generation,
  * and mock ABDM integration without requiring any backend server.
  */
+import { dispatchEmergencyAlert } from './alertSync.js';
 
 const SEED_PATIENTS = [
   {
@@ -450,6 +451,11 @@ let localSessions = [
     condition_id: 'chest_pain',
     status: 'flagged',
     red_flag_detected: true,
+    pain_severity: 8,
+    red_flags: [
+      { ruleName: 'Severe Pain Intensity (>=8)', severity: 'CRITICAL', message: 'High pain severity (8/10 or higher) reported. Triaged for immediate physician assessment.', rationale: 'High pain score indicates urgent clinical prioritization.' },
+      { ruleName: 'Left Arm / Shoulder Radiation', severity: 'CRITICAL', message: 'Potential warning sign detected: Pain radiating to the left arm is a high-risk symptom for acute coronary syndrome.', rationale: 'Radiation of chest pain to left arm is strongly associated with acute myocardial ischemia.' }
+    ],
     consent_given: true,
     opd_token_number: 'OPD-101',
     created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString()
@@ -517,8 +523,8 @@ let localDocuments = [
 
 let localSummaries = {
   [initialDemoSessionId]: {
-    chief_complaint: 'Acute retrosternal crushing chest discomfort of 2 hours duration',
-    hpi_summary: '54-year-old male with known hypertension presents with sudden onset crushing retrosternal chest pain (severity 8/10), radiating to left arm and shoulder. Accompanied by shortness of breath and diaphoresis.',
+    chief_complaint: 'Acute retrosternal crushing chest discomfort of 2 hours duration (Severity 8/10)',
+    hpi_summary: '54-year-old male with known hypertension presents with sudden onset crushing retrosternal chest pain (severity 8/10), radiating to left arm and shoulder. Accompanied by shortness of breath and diaphoresis. High severity risk triage alert triggered at kiosk.',
     past_history: 'Essential Hypertension (diagnosed 2021), Dyslipidemia.',
     medications_summary: 'Telmisartan 40mg OD, Atorvastatin 20mg OD, Ecosprin 75mg OD.',
     allergies_summary: 'No known drug allergies reported.',
@@ -526,13 +532,48 @@ let localSummaries = {
     personal_history: 'Non-smoker.',
     review_of_systems: 'Positive for dyspnea and sweating. Denies syncope.',
     red_flags_summary: [
-      { rule_name: 'Left Arm / Shoulder Radiation', severity: 'CRITICAL', warning: 'High-risk symptom for acute coronary syndrome.' }
+      { rule_name: 'Severe Pain Intensity (>=8)', severity: 'CRITICAL', warning: 'High pain severity (8/10 or higher) reported. Triaged for immediate physician assessment.', rationale: 'High pain score indicates urgent clinical prioritization.' },
+      { rule_name: 'Left Arm / Shoulder Radiation', severity: 'CRITICAL', warning: 'Potential warning sign detected: Pain radiating to the left arm is a high-risk symptom for acute coronary syndrome.', rationale: 'Radiation of chest pain to left arm is strongly associated with acute myocardial ischemia.' }
     ],
     physician_notes: 'Urgent Stat ECG requested. Bedside telemetry initiated.'
   }
 };
 
 let localReviews = {};
+
+const persistSessions = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem('medikiosk_local_sessions', JSON.stringify(localSessions));
+      localStorage.setItem('medikiosk_local_summaries', JSON.stringify(localSummaries));
+    } catch (e) {
+      console.warn('[mockEngine] Failed to persist local sessions:', e);
+    }
+  }
+};
+
+const loadPersistedSessions = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = localStorage.getItem('medikiosk_local_sessions');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localSessions = parsed;
+        }
+      }
+      const rawSumm = localStorage.getItem('medikiosk_local_summaries');
+      if (rawSumm) {
+        localSummaries = { ...localSummaries, ...JSON.parse(rawSumm) };
+      }
+    } catch (e) {
+      console.warn('[mockEngine] Failed to load persisted sessions:', e);
+    }
+  }
+};
+
+// Initial load
+loadPersistedSessions();
 
 export const StandaloneMockEngine = {
   getPatients: () => ({ success: true, patients: SEED_PATIENTS }),
@@ -551,7 +592,7 @@ export const StandaloneMockEngine = {
     return { success: true, patient: newP };
   },
 
-  startSession: ({ language = 'en', system = 'allopathy', patientId }) => {
+  startSession: ({ language = 'en', system = 'ayush', patientId }) => {
     const sessionPatient = SEED_PATIENTS.find(p => p.id === patientId) || SEED_PATIENTS[0];
     const newSessionId = `sess-${Date.now()}`;
     const token = `OPD-${Math.floor(100 + Math.random() * 900)}`;
@@ -567,12 +608,15 @@ export const StandaloneMockEngine = {
       clinical_system: system,
       status: 'in_progress',
       red_flag_detected: false,
+      pain_severity: null,
+      red_flags: [],
       consent_given: true,
       opd_token_number: token,
       created_at: new Date().toISOString()
     };
 
     localSessions.unshift(newSession);
+    persistSessions();
 
     // Pick first question for this system
     const systemQuestions = SEED_QUESTIONS.filter(q => q.clinical_system === system);
@@ -655,9 +699,35 @@ export const StandaloneMockEngine = {
       });
     }
 
+    if (clinicalField === 'severity') {
+      session.pain_severity = parseFloat(ansLower);
+    }
+
     if (isRedFlag) {
       session.red_flag_detected = true;
       session.status = 'flagged';
+      if (!session.red_flags) session.red_flags = [];
+      triggeredFlags.forEach(tf => {
+        if (!session.red_flags.some(r => r.ruleName === tf.ruleName)) {
+          session.red_flags.push(tf);
+        }
+      });
+
+      // Automatically dispatch alert to doctor workstation
+      try {
+        dispatchEmergencyAlert({
+          sessionId: session.id,
+          opdToken: session.opd_token_number,
+          patientName: session.patient_name,
+          age: session.age,
+          gender: session.gender,
+          redFlags: triggeredFlags,
+          painSeverity: session.pain_severity,
+          clinicalSystem: session.clinical_system
+        });
+      } catch (err) {
+        console.warn('[mockEngine] Could not dispatch alert:', err);
+      }
     }
 
     localAnswers.push({
@@ -679,15 +749,35 @@ export const StandaloneMockEngine = {
     if (!nextQ) {
       // Completed session
       session.status = session.red_flag_detected ? 'flagged' : 'completed';
+      const answersForSession = localAnswers.filter(a => a.session_id === sessionId);
+      const severityAns = answersForSession.find(a => a.clinical_field === 'severity')?.raw_answer || session.pain_severity;
+      const radiationAns = answersForSession.find(a => a.clinical_field === 'radiation')?.raw_answer;
+      const chiefAns = answersForSession.find(a => a.clinical_field === 'chief_complaint')?.raw_answer;
+      const characterAns = answersForSession.find(a => a.clinical_field === 'character')?.raw_answer;
+
       localSummaries[sessionId] = {
-        chief_complaint: session.clinical_system === 'ayush' ? 'Ajeerna / Dashavidha Pariksha OPD' : 'Acute Chest Discomfort',
-        hpi_summary: `Patient attended OPD Kiosk. Completed structured case-taking for ${session.clinical_system}. Recorded symptoms and risk factors.`,
+        chief_complaint: session.clinical_system === 'ayush' 
+          ? 'Ajeerna / Dashavidha Pariksha OPD' 
+          : (session.red_flag_detected ? `Acute Chest Pain (Severity ${severityAns || '8'}/10) - High Severity Risk Triage` : 'Acute Chest Discomfort'),
+        hpi_summary: session.clinical_system === 'ayush'
+          ? `Patient attended OPD Kiosk. Completed structured case-taking for AYUSH.`
+          : `Patient presented to OPD Kiosk reporting acute chest discomfort (${chiefAns || 'retrosternal'}). Pain severity rated as ${severityAns || '8'}/10${characterAns ? `, described as ${characterAns}` : ''}.${radiationAns ? ` Radiation noted: ${radiationAns}.` : ''} ${session.red_flag_detected ? 'CRITICAL ALERT: Emergency high severity risk flagged at kiosk. Urgent clinical review and STAT ECG recommended.' : 'Patient hemodynamically stable, standard OPD triage.'}`,
         past_history: 'None reported',
         medications_summary: 'None reported',
         allergies_summary: 'No known allergies reported',
         family_history: 'Negative',
         personal_history: 'No high risk habits reported',
-        review_of_systems: 'Completed via touch interface',
+        review_of_systems: 'Completed via kiosk touch interface',
+        red_flags_summary: (session.red_flags && session.red_flags.length > 0)
+          ? session.red_flags.map(rf => ({
+              rule_name: rf.ruleName,
+              severity: rf.severity || 'CRITICAL',
+              warning: rf.message,
+              rationale: rf.rationale
+            }))
+          : (session.red_flag_detected ? [
+              { rule_name: `Severe Pain Intensity (${severityAns || 8}/10)`, severity: 'CRITICAL', warning: 'High pain severity reported. Triaged for immediate physician assessment.', rationale: 'Urgent clinical prioritization for acute pain score >= 8.' }
+            ] : []),
         ayush_assessment: session.clinical_system === 'ayush' ? {
           prakriti: { body_build: 'Vata-Pitta', skin_hair: 'Dry / Cool', temperature_tolerance: 'Sheeta Asahishnu' },
           agni: 'Vishama Agni',
@@ -700,8 +790,10 @@ export const StandaloneMockEngine = {
           vihara: 'Sedentary',
           vaya: 'Madhyama (Adult)'
         } : null,
-        physician_notes: ''
+        physician_notes: session.red_flag_detected ? 'HIGH SEVERITY ALERT: Urgent physician evaluation and Stat ECG requested.' : ''
       };
+
+      persistSessions();
 
       return {
         success: true,
@@ -712,6 +804,8 @@ export const StandaloneMockEngine = {
         redFlags: triggeredFlags
       };
     }
+
+    persistSessions();
 
     const lang = session.language || 'en';
     return {
@@ -759,15 +853,46 @@ export const StandaloneMockEngine = {
     };
   },
 
-  getSessions: () => ({
-    success: true,
-    sessions: localSessions
-  }),
+  getSessions: () => {
+    loadPersistedSessions();
+    return {
+      success: true,
+      sessions: localSessions
+    };
+  },
 
   getSessionDetail: (sessionId) => {
+    loadPersistedSessions();
     const session = localSessions.find(s => s.id === sessionId) || localSessions[0];
     const patient = SEED_PATIENTS.find(p => p.id === session.patient_id) || SEED_PATIENTS[0];
-    const summary = localSummaries[session.id] || localSummaries[initialDemoSessionId];
+    let summary = localSummaries[session.id];
+    if (!summary) {
+      if (session.red_flag_detected) {
+        summary = {
+          chief_complaint: `Acute Chest Discomfort - High Severity Risk (Score: ${session.pain_severity || 8}/10)`,
+          hpi_summary: `Patient attended OPD Kiosk. High heart pain severity (${session.pain_severity || 8}/10) recorded. Emergency red-flag safety alert triggered at kiosk intake.`,
+          past_history: 'None reported',
+          medications_summary: 'None reported',
+          allergies_summary: 'No known allergies reported',
+          family_history: 'Negative',
+          personal_history: 'None reported',
+          review_of_systems: 'Recorded at kiosk',
+          red_flags_summary: (session.red_flags && session.red_flags.length > 0)
+            ? session.red_flags.map(rf => ({
+                rule_name: rf.ruleName || rf.rule_name,
+                severity: rf.severity || 'CRITICAL',
+                warning: rf.message || rf.warning,
+                rationale: rf.rationale
+              }))
+            : [
+                { rule_name: `Severe Pain Intensity (${session.pain_severity || 8}/10)`, severity: 'CRITICAL', warning: 'High pain severity reported. Triaged for immediate physician assessment.', rationale: 'Urgent clinical prioritization for acute pain score >= 8.' }
+              ],
+          physician_notes: 'CRITICAL ALERT: Emergency high severity risk flagged at kiosk.'
+        };
+      } else {
+        summary = localSummaries[initialDemoSessionId];
+      }
+    }
     const review = localReviews[session.id] || null;
     const documents = localDocuments.filter(d => d.patient_id === patient.id);
 
@@ -782,9 +907,11 @@ export const StandaloneMockEngine = {
   },
 
   submitReview: (reviewData) => {
+    loadPersistedSessions();
     const sessionId = reviewData.sessionId;
     const session = localSessions.find(s => s.id === sessionId);
     if (session) session.status = 'reviewed';
+    persistSessions();
 
     const patient = SEED_PATIENTS.find(p => p.id === session?.patient_id) || SEED_PATIENTS[0];
 

@@ -10,12 +10,13 @@ import { getTranslation } from '../services/i18n';
 import KioskNavbar from '../components/KioskNavbar';
 import VoiceWaveform from '../components/VoiceWaveform';
 import RedFlagModal from '../components/RedFlagModal';
+import { dispatchEmergencyAlert } from '../services/alertSync';
 
 export default function KioskApp({ onSwitchToDoctor }) {
   // Navigation Steps: 'LANG' | 'SYSTEM' | 'PATIENT' | 'CONSENT' | 'QUESTIONS' | 'DOCS' | 'DONE'
   const [step, setStep] = useState('LANG');
   const [language, setLanguage] = useState('en');
-  const [system, setSystem] = useState('allopathy'); // 'allopathy' | 'ayush'
+  const [system, setSystem] = useState('ayush'); // 'ayush' | 'allopathy'
   
   // Patient Selection
   const [patients, setPatients] = useState([]);
@@ -52,6 +53,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [isRedFlag, setIsRedFlag] = useState(false);
   const [activeRedFlags, setActiveRedFlags] = useState([]);
   const [showRedFlagModal, setShowRedFlagModal] = useState(false);
+  const [staffAlertToast, setStaffAlertToast] = useState(false);
 
   // Document Upload State
   const [uploadingDoc, setUploadingDoc] = useState(false);
@@ -213,6 +215,22 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setIsRedFlag(true);
           setActiveRedFlags(res.redFlags || []);
           setShowRedFlagModal(true);
+
+          // Dispatch emergency alert to Doctor Dashboard in real time
+          try {
+            dispatchEmergencyAlert({
+              sessionId,
+              opdToken,
+              patientName: selectedPatient?.full_name || 'Walk-in Patient',
+              age: selectedPatient?.age,
+              gender: selectedPatient?.gender,
+              redFlags: res.redFlags || [],
+              painSeverity: currentQuestion.clinicalField === 'severity' ? finalAnswer : undefined,
+              clinicalSystem: system
+            });
+          } catch (e) {
+            console.warn('Failed to dispatch alert:', e);
+          }
         }
 
         if (res.completed || !res.nextQuestion) {
@@ -223,8 +241,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setProgress(res.progress);
           resetInputState();
 
-          // Read out next question
-          defaultVoiceProvider.speak(res.nextQuestion.text, { language });
+          // If no red flag modal is blocking, read out next question
+          if (!res.isRedFlag) {
+            defaultVoiceProvider.speak(res.nextQuestion.text, { language });
+          }
         }
       }
     } catch (err) {
@@ -280,9 +300,38 @@ export default function KioskApp({ onSwitchToDoctor }) {
       <RedFlagModal
         redFlags={activeRedFlags}
         isOpen={showRedFlagModal}
-        onClose={() => setShowRedFlagModal(false)}
+        onClose={() => {
+          setShowRedFlagModal(false);
+          setStaffAlertToast(true);
+          setTimeout(() => setStaffAlertToast(false), 5000);
+          if (step === 'QUESTIONS' && currentQuestion?.text) {
+            defaultVoiceProvider.speak(currentQuestion.text, { language });
+          }
+        }}
+        onConfirmAndContinue={() => {
+          setShowRedFlagModal(false);
+          setStaffAlertToast(true);
+          setTimeout(() => setStaffAlertToast(false), 5000);
+          if (step === 'QUESTIONS' && currentQuestion?.text) {
+            defaultVoiceProvider.speak(currentQuestion.text, { language });
+          }
+        }}
         language={language}
       />
+
+      {/* Reassurance Notification Toast when Staff Alerted */}
+      {staffAlertToast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-40 bg-emerald-700 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 border-2 border-emerald-400 animate-in fade-in slide-in-from-top duration-300">
+          <CheckCircle2 className="w-6 h-6 text-emerald-200 shrink-0" />
+          <div className="text-sm font-bold">
+            {language === 'hi'
+              ? '✓ अस्पताल स्टाफ एवं डॉक्टर वर्कस्टेशन को सूचित कर दिया गया है। कृपया आगे के प्रश्नों के उत्तर दें।'
+              : language === 'kn'
+              ? '✓ ಆಸ್ಪತ್ರೆ ಸಿಬ್ಬಂದಿ ಮತ್ತು ವೈದ್ಯರ ವರ್ಕ್‌ಸ್ಟೇಷನ್‌ಗೆ ತಿಳಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಮುಂದಿನ ಪ್ರಶ್ನೆಗಳಿಗೆ ಉತ್ತರಿಸಿ.'
+              : '✓ Hospital staff & OPD physician alerted. Please continue with the remaining questions.'}
+          </div>
+        </div>
+      )}
 
       {/* Main Kiosk Touch Surface */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">

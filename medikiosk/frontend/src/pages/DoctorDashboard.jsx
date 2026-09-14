@@ -2,10 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   Stethoscope, AlertOctagon, CheckCircle, FileText, Send,
   Download, Eye, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
-  Clock, User, HeartPulse, Flower2, ChevronRight, Activity, Calendar
+  Clock, User, HeartPulse, Flower2, ChevronRight, Activity, Calendar,
+  BellRing, Volume2, VolumeX, AlertTriangle, X
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
+import { 
+  subscribeToEmergencyAlerts, 
+  getUnacknowledgedAlerts, 
+  acknowledgeAlert, 
+  playAlertChime 
+} from '../services/alertSync';
 
 export default function DoctorDashboard({ onSwitchToKiosk }) {
   const [sessions, setSessions] = useState([]);
@@ -30,9 +37,47 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
   const [abdmReceipt, setAbdmReceipt] = useState(null);
   const [showAbdmReceipt, setShowAbdmReceipt] = useState(false);
 
+  // Real-Time Red Flag Emergency Alert State
+  const [activeAlerts, setActiveAlerts] = useState([]);
+  const [currentEmergencyAlert, setCurrentEmergencyAlert] = useState(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
   useEffect(() => {
     loadSessions();
-  }, []);
+    const initialUnack = getUnacknowledgedAlerts();
+    setActiveAlerts(initialUnack);
+    if (initialUnack.length > 0) {
+      setCurrentEmergencyAlert(initialUnack[0]);
+    }
+
+    const unsubscribe = subscribeToEmergencyAlerts(
+      (newAlert) => {
+        if (soundEnabled) playAlertChime();
+        setActiveAlerts(prev => [newAlert, ...prev.filter(a => a.sessionId !== newAlert.sessionId)]);
+        setCurrentEmergencyAlert(newAlert);
+        loadSessions();
+        loadSessionDetail(newAlert.sessionId);
+      },
+      (ackId) => {
+        if (ackId) {
+          setActiveAlerts(prev => prev.filter(a => a.id !== ackId && a.sessionId !== ackId));
+          setCurrentEmergencyAlert(prev => (prev?.id === ackId || prev?.sessionId === ackId) ? null : prev);
+        } else {
+          setActiveAlerts(getUnacknowledgedAlerts());
+        }
+      }
+    );
+
+    const timer = setInterval(() => {
+      loadSessions();
+      setActiveAlerts(getUnacknowledgedAlerts());
+    }, 3000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+    };
+  }, [soundEnabled]);
 
   const loadSessions = async () => {
     setIsLoading(true);
@@ -132,12 +177,34 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
     }
   };
 
-  // Filter sessions
-  const filteredSessions = sessions.filter(s => {
-    if (filterSystem === 'all') return true;
-    if (filterSystem === 'flagged') return s.red_flag_detected;
-    return s.clinical_system === filterSystem;
-  });
+  // Alert Handlers
+  const handleReviewAlertPatient = (alert) => {
+    if (!alert) return;
+    acknowledgeAlert(alert.id || alert.sessionId);
+    setCurrentEmergencyAlert(null);
+    setSelectedSessionId(alert.sessionId);
+    loadSessionDetail(alert.sessionId);
+    setActiveTab('clinical');
+  };
+
+  const handleDismissAlert = (alert) => {
+    if (!alert) return;
+    acknowledgeAlert(alert.id || alert.sessionId);
+    setCurrentEmergencyAlert(null);
+  };
+
+  // Filter and sort sessions (Prioritizing active emergency red-flag cases)
+  const filteredSessions = sessions
+    .filter(s => {
+      if (filterSystem === 'all') return true;
+      if (filterSystem === 'flagged') return s.red_flag_detected;
+      return s.clinical_system === filterSystem;
+    })
+    .sort((a, b) => {
+      if (a.red_flag_detected && !b.red_flag_detected) return -1;
+      if (!a.red_flag_detected && b.red_flag_detected) return 1;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
@@ -163,6 +230,18 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
           </div>
 
           <div className="flex items-center space-x-3">
+            {activeAlerts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setCurrentEmergencyAlert(activeAlerts[0])}
+                className="cursor-pointer flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-black animate-pulse shadow-md transition"
+                title="Click to inspect active emergency alert"
+              >
+                <BellRing className="w-4 h-4" />
+                <span>{activeAlerts.length} Emergency Alert{activeAlerts.length > 1 ? 's' : ''}</span>
+              </button>
+            )}
+
             <button
               onClick={loadSessions}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition"
@@ -181,6 +260,124 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
           </div>
         </div>
       </header>
+
+      {/* Top Sticky Emergency Alert Banner */}
+      {activeAlerts.length > 0 && (
+        <div className="bg-gradient-to-r from-red-600 via-red-700 to-rose-800 text-white px-4 py-2.5 shadow-lg flex items-center justify-between z-20 sticky top-16 border-b-2 border-red-500 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center space-x-3 text-xs sm:text-sm font-bold max-w-4xl overflow-hidden text-ellipsis whitespace-nowrap">
+            <span className="w-3 h-3 rounded-full bg-white animate-ping shrink-0" />
+            <span className="bg-red-950/80 px-2 py-0.5 rounded-full uppercase tracking-wider text-[10px] font-black border border-red-400 shrink-0">
+              🚨 CRITICAL ALERT AT KIOSK
+            </span>
+            <span className="truncate">
+              Patient: <strong>{activeAlerts[0].patientName}</strong> (Token: <strong className="font-mono underline">{activeAlerts[0].opdToken}</strong>) reported high-risk signs ({activeAlerts[0].redFlags?.[0]?.ruleName || 'Potential Warning Sign'})!
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleReviewAlertPatient(activeAlerts[0])}
+              className="px-3.5 py-1.5 bg-white text-red-700 hover:bg-red-50 active:bg-red-100 rounded-xl text-xs font-black shadow transition flex items-center space-x-1"
+            >
+              <Stethoscope className="w-3.5 h-3.5" />
+              <span>Open Dossier Now</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-1.5 text-red-200 hover:text-white hover:bg-red-800 rounded-lg transition"
+              title={soundEnabled ? 'Mute Alert Sound' : 'Unmute Alert Sound'}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDismissAlert(activeAlerts[0])}
+              className="p-1.5 text-red-200 hover:text-white hover:bg-red-800 rounded-lg transition text-xs"
+              title="Acknowledge Alert"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Real-Time Emergency Red Flag Modal Alert */}
+      {currentEmergencyAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-4 border-red-600 text-slate-900 relative">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-14 h-14 rounded-2xl bg-red-100 border-2 border-red-300 flex items-center justify-center text-red-600 shrink-0 animate-bounce">
+                  <AlertOctagon className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase font-black tracking-widest text-red-600 bg-red-50 px-2.5 py-1 rounded-full border border-red-200">
+                    High-Priority Triage Notice
+                  </span>
+                  <h3 className="text-xl font-black text-red-900 mt-1">
+                    Emergency Alert at Kiosk
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDismissAlert(currentEmergencyAlert)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition"
+                title="Dismiss"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
+                <span>Patient: <strong className="text-slate-900 text-sm">{currentEmergencyAlert.patientName}</strong></span>
+                <span>Token: <strong className="text-red-700 font-mono text-base">{currentEmergencyAlert.opdToken}</strong></span>
+              </div>
+              <div className="text-xs text-slate-500 mb-2">
+                {currentEmergencyAlert.age ? `${currentEmergencyAlert.age} Yrs` : ''} {currentEmergencyAlert.gender ? `• ${currentEmergencyAlert.gender}` : ''} • Detected: {new Date(currentEmergencyAlert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </div>
+              
+              <div className="mt-2 pt-2 border-t border-red-200 space-y-1.5">
+                {currentEmergencyAlert.redFlags?.map((rf, idx) => (
+                  <div key={idx} className="text-xs text-red-950 font-bold bg-white p-2.5 rounded-xl border border-red-200">
+                    <div className="text-red-900 font-extrabold flex items-center">
+                      <AlertTriangle className="w-3.5 h-3.5 mr-1 text-red-600 shrink-0" />
+                      {rf.ruleName || rf.rule_name || 'High Severity Warning Sign'}
+                    </div>
+                    <div className="font-normal text-red-800 text-[11px] mt-0.5">{rf.message || rf.warning}</div>
+                    {rf.rationale && <div className="text-[10px] text-red-600 italic mt-0.5">Rationale: {rf.rationale}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+              Patient reported acute safety screening symptoms at the OPD Kiosk terminal. Attending physician clinical review and Stat ECG are urgently recommended.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleReviewAlertPatient(currentEmergencyAlert)}
+                className="flex-1 py-3.5 px-4 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center space-x-2"
+              >
+                <Stethoscope className="w-4 h-4" />
+                <span>Review Patient Dossier Now</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDismissAlert(currentEmergencyAlert)}
+                className="py-3.5 px-4 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold text-sm rounded-xl border border-slate-300 transition"
+              >
+                Acknowledge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Workspace Layout: Left Queue + Right Dossier */}
       <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
@@ -243,9 +440,9 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                   </div>
 
                   {s.red_flag_detected && (
-                    <div className="mt-2 text-[11px] font-black text-red-600 flex items-center bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                      <AlertOctagon className="w-3.5 h-3.5 mr-1 shrink-0" />
-                      <span>RED FLAG TRIAGE</span>
+                    <div className="mt-2 text-[11px] font-black text-red-600 flex items-center bg-red-50 px-2.5 py-1 rounded-lg border border-red-200 animate-pulse">
+                      <AlertOctagon className="w-4 h-4 mr-1 shrink-0 text-red-600" />
+                      <span>ALERT: HIGH SEVERITY RISK {s.pain_severity ? `(${s.pain_severity}/10)` : ''}</span>
                     </div>
                   )}
 
@@ -313,14 +510,40 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
               {/* RED FLAG BANNER (IF DETECTED) */}
               {dossier.session?.red_flag_detected && (
-                <div className="bg-red-50 border-2 border-red-500 rounded-2xl p-4 mb-6 animate-pulse">
-                  <div className="flex items-center space-x-2 text-red-800 font-black text-sm">
-                    <AlertOctagon className="w-5 h-5 text-red-600 shrink-0" />
-                    <span>CRITICAL RED-FLAG ALERT TRIGGERED AT KIOSK</span>
+                <div className="bg-red-50 border-2 border-red-500 rounded-2xl p-5 mb-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2 text-red-800 font-black text-base">
+                      <AlertOctagon className="w-6 h-6 text-red-600 shrink-0 animate-bounce" />
+                      <span>CRITICAL ALERT: HIGH SEVERITY RISK DETECTED AT KIOSK</span>
+                    </div>
+                    <span className="px-3 py-1 bg-red-600 text-white text-xs font-black rounded-full uppercase tracking-wider self-start sm:self-auto">
+                      Immediate Physician Review
+                    </span>
                   </div>
-                  <p className="text-xs text-red-700 mt-1 font-medium">
-                    Patient reported acute high-risk symptoms (e.g. left arm radiation / high pain intensity / fainting). STAT ECG and urgent physician review recommended.
+                  <p className="text-xs text-red-800 mt-2 font-semibold leading-relaxed">
+                    Patient reported acute high severity risk symptoms at the OPD Kiosk{dossier.session?.pain_severity ? ` (Heart Pain Severity Score: ${dossier.session.pain_severity}/10)` : ''}. Immediate clinical review, STAT ECG, and acute triage prioritization required.
                   </p>
+
+                  {/* Triggered Red Flags Details */}
+                  {((dossier.summary?.red_flags_summary && dossier.summary.red_flags_summary.length > 0) || (dossier.session?.red_flags && dossier.session.red_flags.length > 0)) && (
+                    <div className="mt-3 pt-3 border-t border-red-200 space-y-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-red-900 block">
+                        Triggered Safety Screening Flags:
+                      </span>
+                      {(dossier.summary?.red_flags_summary || dossier.session?.red_flags || []).map((rf, idx) => (
+                        <div key={idx} className="bg-white border border-red-300 rounded-xl p-3 text-xs text-red-950 flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-sm">
+                          <div>
+                            <span className="font-bold text-red-900 text-sm">{rf.rule_name || rf.ruleName || 'High Severity Risk Flag'}</span>
+                            <p className="text-xs text-red-700 mt-0.5">{rf.warning || rf.message}</p>
+                            {rf.rationale && <p className="text-[11px] text-red-600 italic mt-0.5">Rationale: {rf.rationale}</p>}
+                          </div>
+                          <span className="text-[10px] font-black bg-red-100 text-red-800 px-2.5 py-1 rounded-md border border-red-300 uppercase shrink-0 self-start sm:self-auto">
+                            {rf.severity || 'CRITICAL'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
