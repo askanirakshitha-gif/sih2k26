@@ -575,6 +575,321 @@ const loadPersistedSessions = () => {
 // Initial load
 loadPersistedSessions();
 
+// Adaptive Dynamic Question Generator based on patient's previous answer
+export function generateAdaptiveNextQuestion({ session, lastAnswer, answersForSession }) {
+  const answeredCount = answersForSession.length;
+  const system = session.clinical_system || 'ayush';
+  const TOTAL_QUESTIONS = 5;
+
+  if (answeredCount >= TOTAL_QUESTIONS) {
+    return null; // Session completed
+  }
+
+  const q1Answer = String(answersForSession[0]?.raw_answer || '').toLowerCase();
+
+  // --------------------------------------------------------------------------
+  // AYUSH ADAPTIVE QUESTION TREE
+  // --------------------------------------------------------------------------
+  if (system === 'ayush') {
+    // Step 2: Auto-generate based on Q1 Chief Complaint
+    if (answeredCount === 1) {
+      if (q1Answer.includes('digest') || q1Answer.includes('gas') || q1Answer.includes('acid') || q1Answer.includes('ajeerna')) {
+        return {
+          id: 'ay_dig_q2',
+          clinical_field: 'digestion_pattern',
+          sequence: 2,
+          question_type: 'single_choice',
+          question_text_en: 'Based on your digestive discomfort, what is the primary symptom you experience after meals?',
+          question_text_hi: 'आपकी पाचन समस्या के आधार पर, भोजन के बाद आपको मुख्य रूप से क्या लक्षण महसूस होते हैं?',
+          question_text_kn: 'ನಿಮ್ಮ ಜೀರ್ಣಕ್ರಿಯೆಯ ತೊಂದರೆಯ ಆಧಾರದ ಮೇಲೆ, ಊಟದ ನಂತರ ಮುಖ್ಯವಾಗಿ ಯಾವ ಲಕ್ಷಣ ಕಾಣಿಸಿಕೊಳ್ಳುತ್ತದೆ?',
+          options: [
+            { value: 'burning_reflux', text_en: 'Burning sensation in chest/throat with sour burps (Amlapitta)', text_hi: 'सीने या गले में जलन व खट्टी डकारें (अम्लपित्त)', text_kn: 'ಎದೆ ಅಥವಾ ಗಂಟಲಲ್ಲಿ ಉರಿ, ಹುಳಿ ತೇಗು (ಆಮ್ಲಪಿತ್ತ)' },
+            { value: 'gas_bloating', text_en: 'Severe abdominal bloating, heaviness and flatulence (Adhmana)', text_hi: 'पेट में भारीपन, गैस और अफरा (आध्मान)', text_kn: 'ಹೊಟ್ಟೆ ಉಬ್ಬರ, ಭಾರ ಮತ್ತು ಗ್ಯಾಸ್ (ಆಧ್ಮಾನ)' },
+            { value: 'low_appetite_sluggish', text_en: 'Poor appetite, sluggish digestion, food feels stuck for hours', text_hi: 'कम भूख लगना, मंद पाचन, खाना देर तक न पचना (मंदाग्नि)', text_kn: 'ಕಡಿಮೆ ಹಸಿವು, ಮಂದ ಜೀರ್ಣಕ್ರಿಯೆ, ಹೊಟ್ಟೆ ಭಾರ' },
+            { value: 'cramps_irregular_bowel', text_en: 'Cramping stomach discomfort relieved after passing stool', text_hi: 'पेट में मरोड़ और दर्द, पेट साफ होने पर आराम', text_kn: 'ಹೊಟ್ಟೆಯಲ್ಲಿ ಸೆಳೆತ ಮತ್ತು ನೋವು, ಮಲವಿಸರ್ಜನೆಯ ನಂತರ ಆರಾಮ' }
+          ],
+          progress: { current: 2, total: TOTAL_QUESTIONS, percent: 40 }
+        };
+      } else if (q1Answer.includes('joint') || q1Answer.includes('pain') || q1Answer.includes('sandhivata')) {
+        return {
+          id: 'ay_jnt_q2',
+          clinical_field: 'joint_location',
+          sequence: 2,
+          question_type: 'single_choice',
+          question_text_en: 'Regarding your joint or muscular discomfort, which parts of your body are most affected?',
+          question_text_hi: 'जोड़ों या मांसपेशियों के दर्द में, आपके शरीर का कौन सा भाग सबसे अधिक प्रभावित है?',
+          question_text_kn: 'ಕೀಲು ಅಥವಾ ಸ್ನಾಯು ನೋವಿನಲ್ಲಿ ನಿಮ್ಮ ದೇಹದ ಯಾವ ಭಾಗ ಹೆಚ್ಚು ತೊಂದರೆಗೊಳಗಾಗಿದೆ?',
+          options: [
+            { value: 'knees_spine', text_en: 'Knee joints and lower back (weight-bearing joints)', text_hi: 'घुटने और पीठ का निचला हिस्सा (भार सहने वाले जोड़)', text_kn: 'ಮಂಡಿ ಕೀಲುಗಳು ಮತ್ತು ಕೆಳಬೆನ್ನು (ತೂಕ ಹೊರುವ ಕೀಲುಗಳು)' },
+            { value: 'hands_wrists', text_en: 'Small joints of fingers, hands, and wrists with morning stiffness', text_hi: 'उंगलियों, हाथों और कलाई के छोटे जोड़, सुबह जकड़न', text_kn: 'ಬೆರಳುಗಳು, ಕೈಗಳು ಮತ್ತು ಮಣಿಕಟ್ಟಿನ ಸಣ್ಣ ಕೀಲುಗಳು' },
+            { value: 'neck_shoulders', text_en: 'Neck, shoulders, and upper cervical spine stiffness', text_hi: 'गर्दन और कंधों में अकड़न व दर्द', text_kn: 'ಕುತ್ತಿಗೆ ಮತ್ತು ಭುಜದ ಬಿಗಿತ ಮತ್ತು ನೋವು' },
+            { value: 'generalized_ache', text_en: 'Widespread muscle soreness, heaviness and generalized ache', text_hi: 'पूरे शरीर की मांसपेशियों में भारीपन व दर्द', text_kn: 'ಸಂಪೂರ್ಣ ದೇಹದ ಸ್ನಾಯು ನೋವು ಮತ್ತು ಭಾರ' }
+          ],
+          progress: { current: 2, total: TOTAL_QUESTIONS, percent: 40 }
+        };
+      } else {
+        return {
+          id: 'ay_str_q2',
+          clinical_field: 'stress_manifestation',
+          sequence: 2,
+          question_type: 'single_choice',
+          question_text_en: 'Regarding your fatigue and mental stress, what is the most challenging symptom you face?',
+          question_text_hi: 'तनाव और मानसिक थकान के संबंध में, आप सबसे अधिक किस परेशानी का सामना कर रहे हैं?',
+          question_text_kn: 'ಮಾನಸಿಕ ಒತ್ತಡ ಮತ್ತು ಆಯಾಸದ ಸಂಬಂಧದಲ್ಲಿ, ನೀವು ಎದುರಿಸುತ್ತಿರುವ ಪ್ರಮುಖ ಸಮಸ್ಯೆ ಏನು?',
+          options: [
+            { value: 'racing_thoughts_sleepless', text_en: 'Difficulty falling asleep due to an overactive, racing mind (Vata)', text_hi: 'मन में अत्यधिक विचारों के कारण नींद न आना (वात)', text_kn: 'ಮನಸ್ಸಿನಲ್ಲಿ ಹೆಚ್ಚು ಆಲೋಚನೆಗಳಿಂದ ನಿದ್ರೆ ಬಾರದಿರುವುದು (ವಾತ)' },
+            { value: 'mid_night_waking_irritation', text_en: 'Waking up around 2-3 AM with heat, restlessness or irritability (Pitta)', text_hi: 'रात 2-3 बजे नींद टूटना, पसीना व चिड़चिड़ापन (पित्त)', text_kn: 'ರಾತ್ರಿ 2-3 ಗಂಟೆಗೆ ಬೆವರಿನೊಂದಿಗೆ ಎಚ್ಚರವಾಗುವುದು (ಪಿತ್ತ)' },
+            { value: 'daytime_brain_fog', text_en: 'Heavy head, morning lethargy, brain fog and lack of motivation (Kapha)', text_hi: 'सुबह भारीपन, काम में मन न लगना, अत्यधिक आलस्य (कफ)', text_kn: 'ತಲೆ ಭಾರ, ದಿನವಿಡೀ ಆಲಸ್ಯ ಮತ್ತು ಏಕಾಗ್ರತೆಯ ಕೊರತೆ (ಕಫ)' },
+            { value: 'tension_headaches', text_en: 'Physical tension headaches, neck stiffness, and eye fatigue', text_hi: 'तनाव से सिरदर्द, गर्दन में जकड़न और आंखों में खिंचाव', text_kn: 'ಒತ್ತಡದಿಂದ ತಲೆನೋವು, ಕುತ್ತಿಗೆ ಬಿಗಿತ ಮತ್ತು ಕಣ್ಣಿನ ಆಯಾಸ' }
+          ],
+          progress: { current: 2, total: TOTAL_QUESTIONS, percent: 40 }
+        };
+      }
+    }
+
+    // Step 3: Modalities / triggers
+    if (answeredCount === 2) {
+      if (q1Answer.includes('digest') || q1Answer.includes('gas') || q1Answer.includes('acid')) {
+        return {
+          id: 'ay_dig_q3',
+          clinical_field: 'dietary_triggers',
+          sequence: 3,
+          question_type: 'single_choice',
+          question_text_en: 'Which dietary or daily habit triggers or worsens your digestive symptoms most?',
+          question_text_hi: 'कौन सा खान-पान या आदत आपकी पाचन समस्या को सबसे ज्यादा बढ़ाती है?',
+          question_text_kn: 'ಯಾವ ಆಹಾರ ಅಥವಾ ದಿನಚರಿ ನಿಮ್ಮ ಜೀರ್ಣಕ್ರಿಯೆಯ ತೊಂದರೆಯನ್ನು ಹೆಚ್ಚು ಮಾಡುತ್ತದೆ?',
+          options: [
+            { value: 'spicy_oily', text_en: 'Spicy, fried foods, tea/coffee or pickles', text_hi: 'मसालेदार, तला-भुना खाना या चाय-कॉफ़ी', text_kn: 'ಖಾರ, ಎಣ್ಣೆಯುಕ್ತ ಆಹಾರ ಅಥವಾ ಚಹಾ-ಕಾಫಿ' },
+            { value: 'late_irregular_meals', text_en: 'Irregular meal timings or eating late at night', text_hi: 'अनियमित समय पर खाना या देर रात भोजन', text_kn: 'ಅನಿಯಮಿತ ಅಥವಾ ತಡರಾತ್ರಿಯ ಊಟ' },
+            { value: 'heavy_dairy_wheat', text_en: 'Dairy, heavy sweets, or refined wheat products', text_hi: 'दूध-दही, भारी मिठाइयां या मैदा', text_kn: 'ಹಾಲು, ಭಾರವಾದ ಸಿಹಿತಿಂಡಿ ಅಥವಾ ಮೈದಾ' },
+            { value: 'stress_anxiety', text_en: 'Mental stress, hurry, or eating while anxious', text_hi: 'मानसिक तनाव, जल्दबाजी या चिंता में भोजन करना', text_kn: 'ಮಾನಸಿಕ ಒತ್ತಡ ಅಥವಾ ಆತಂಕದಲ್ಲಿ ಊಟ ಮಾಡುವುದು' }
+          ],
+          progress: { current: 3, total: TOTAL_QUESTIONS, percent: 60 }
+        };
+      } else if (q1Answer.includes('joint') || q1Answer.includes('pain')) {
+        return {
+          id: 'ay_jnt_q3',
+          clinical_field: 'pain_modality',
+          sequence: 3,
+          question_type: 'single_choice',
+          question_text_en: 'How does the pain behave with temperature, warmth, or movement?',
+          question_text_hi: 'तापमान, गर्माहट या हलचल से आपके दर्द पर क्या असर पड़ता है?',
+          question_text_kn: 'ತಾಪಮಾನ, ಬೆಚ್ಚಗಿನ ಶಾಖ ಅಥವಾ ಚಲನೆಯಿಂದ ನೋವಿನಲ್ಲಿ ಏನು ವ್ಯತ್ಯಾಸವಾಗುತ್ತದೆ?',
+          options: [
+            { value: 'worse_cold_better_heat', text_en: 'Worse in cold/damp weather, relieved by hot fomentation (Vata)', text_hi: 'ठंड में बढ़ता है, गर्म सेंक से आराम मिलता है (वात)', text_kn: 'ಚಳಿಯಲ್ಲಿ ಹೆಚ್ಚಾಗುತ್ತದೆ, ಬಿಸಿನೀರಿನ ಶಾಖದಿಂದ ಗುಣವಾಗುತ್ತದೆ (ವಾತ)' },
+            { value: 'burning_warm_touch', text_en: 'Warm to touch, burning sensation, relieved by cool air (Pitta)', text_hi: 'छूने पर गर्म, जलन होती है, ठंडी हवा से आराम (पित्त)', text_kn: 'ಮುಟ್ಟಿದರೆ ಬಿಸಿ, ಉರಿತ, ತಂಪು ಗಾಳಿಯಿಂದ ಆರಾಮ (ಪಿತ್ತ)' },
+            { value: 'morning_stiffness_heavy', text_en: 'Severe morning stiffness over 30 mins, heavy swelling (Kapha)', text_hi: 'सुबह उठने पर अत्यधिक जकड़न और सूजन (कफ)', text_kn: 'ಬೆಳಗಿನ ಜಾವದಲ್ಲಿ ತೀವ್ರ ಬಿಗಿತ ಮತ್ತು ಊತ (ಕಫ)' },
+            { value: 'worse_continuous_walking', text_en: 'Worsens after prolonged walking or standing, needs rest', text_hi: 'ज्यादा चलने या खड़े रहने पर बढ़ता है', text_kn: 'ಹೆಚ್ಚು ನಡೆದರೆ ಅಥವಾ ನಿಂತರೆ ನೋವು ಹೆಚ್ಚಾಗುತ್ತದೆ' }
+          ],
+          progress: { current: 3, total: TOTAL_QUESTIONS, percent: 60 }
+        };
+      } else {
+        return {
+          id: 'ay_str_q3',
+          clinical_field: 'stress_duration',
+          sequence: 3,
+          question_type: 'single_choice',
+          question_text_en: 'How long have you been experiencing this fatigue or mental stress?',
+          question_text_hi: 'आप कितने समय से इस थकान या मानसिक तनाव का अनुभव कर रहे हैं?',
+          question_text_kn: 'ನೀವು ಎಷ್ಟು ಸಮಯದಿಂದ ಈ ಆಯಾಸ ಅಥವಾ ಮಾನಸಿಕ ಒತ್ತಡವನ್ನು ಅನುಭವಿಸುತ್ತಿದ್ದೀರಿ?',
+          options: [
+            { value: 'recent_days', text_en: 'Recent onset (past 1-2 weeks due to temporary workload)', text_hi: 'हाल ही में (पिछले 1-2 हफ्तों से, किसी काम की वजह से)', text_kn: 'ಇತ್ತೀಚೆಗೆ (ಕಳೆದ 1-2 ವಾರಗಳಿಂದ)' },
+            { value: 'one_three_months', text_en: 'Ongoing for 1 to 3 months', text_hi: 'पिछले 1 से 3 महीनों से लगातार', text_kn: 'ಕಳೆದ 1 ರಿಂದ 3 ತಿಂಗಳುಗಳಿಂದ' },
+            { value: 'chronic_six_months', text_en: 'Chronic concern lasting more than 6 months', text_hi: 'दीर्घकालिक (6 महीने से अधिक समय से)', text_kn: 'ದೀರ್ಘಕಾಲಿಕ (6 ತಿಂಗಳಿಗಿಂತ ಹೆಚ್ಚು ಸಮಯದಿಂದ)' }
+          ],
+          progress: { current: 3, total: TOTAL_QUESTIONS, percent: 60 }
+        };
+      }
+    }
+
+    // Step 4: Koshtha / Functional mobility
+    if (answeredCount === 3) {
+      if (q1Answer.includes('digest') || q1Answer.includes('gas') || q1Answer.includes('acid')) {
+        return {
+          id: 'ay_dig_q4',
+          clinical_field: 'koshtha_bowel',
+          sequence: 4,
+          question_type: 'single_choice',
+          question_text_en: 'Koshtha Pariksha: How is your stool consistency and daily bowel movement?',
+          question_text_hi: 'कोष्ठ परीक्षा: आपका पेट साफ होने की स्थिति और मल त्याग का स्वभाव कैसा है?',
+          question_text_kn: 'ಕೋಷ್ಠ ಪರೀಕ್ಷೆ: ನಿಮ್ಮ ಮಲವಿಸರ್ಜನೆ ಮತ್ತು ಹೊಟ್ಟೆ ಸ್ವಚ್ಛತೆಯ ಅಭ್ಯಾಸ ಹೇಗಿದೆ?',
+          options: [
+            { value: 'krura_constipated', text_en: 'Hard, dry stools with tendency for constipation (Krura Koshtha)', text_hi: 'कड़ा, सूखा मल; कब्ज की प्रवृत्ति (क्रूर कोष्ठ)', text_kn: 'ಗಟ್ಟಿಯಾದ ಮಲ, ಮಲಬದ್ಧತೆಯ ಪ್ರವೃತ್ತಿ (ಕ್ರೂರ ಕೋಷ್ಠ)' },
+            { value: 'mridu_loose', text_en: 'Soft or loose stools, multiple times daily (Mridu Koshtha)', text_hi: 'ढीला या नरम मल, दिन में कई बार (मृदु कोष्ठ)', text_kn: 'ಮೃದು ಅಥವಾ ಸಡಿಲ ಮಲ, ದಿನಕ್ಕೆ ಹಲವು ಬಾರಿ (ಮೃದು ಕೋಷ್ಠ)' },
+            { value: 'madhyama_regular', text_en: 'Regular once or twice daily well-formed elimination (Madhyama Koshtha)', text_hi: 'नियमित एक या दो बार सामान्य मल त्याग (मध्यम कोष्ठ)', text_kn: 'ದಿನಕ್ಕೆ ಒಂದು ಅಥವಾ ಎರಡು ಬಾರಿ ಸಾಮಾನ್ಯ ಮಲವಿಸರ್ಜನೆ (ಮಧ್ಯಮ ಕೋಷ್ಠ)' }
+          ],
+          progress: { current: 4, total: TOTAL_QUESTIONS, percent: 80 }
+        };
+      } else if (q1Answer.includes('joint') || q1Answer.includes('pain')) {
+        return {
+          id: 'ay_jnt_q4',
+          clinical_field: 'mobility_impact',
+          sequence: 4,
+          question_type: 'single_choice',
+          question_text_en: 'How significantly does this joint pain restrict your daily movement and mobility?',
+          question_text_hi: 'यह दर्द आपकी दैनिक गतिविधियों और चलने-फिरने को कितना सीमित करता है?',
+          question_text_kn: 'ಈ ನೋವು ನಿಮ್ಮ ದೈನಂದಿನ ಚಲನೆ ಮತ್ತು ಕೆಲಸಗಳನ್ನು ಎಷ್ಟು ಮಿತಿಗೊಳಿಸುತ್ತದೆ?',
+          options: [
+            { value: 'mild_independent', text_en: 'Mild ache, fully independent in all routine tasks', text_hi: 'हल्का दर्द, सभी दैनिक कार्य आसानी से कर लेते हैं', text_kn: 'ಸೌಮ್ಯ ನೋವು, ಎಲ್ಲಾ ಕೆಲಸಗಳನ್ನು ಸುಲಭವಾಗಿ ಮಾಡಬಹುದು' },
+            { value: 'stairs_squatting_difficult', text_en: 'Difficulty climbing stairs, squatting, or getting up from floor', text_hi: 'सीढ़ियां चढ़ने, उकड़ू बैठने या जमीन से उठने में कठिनाई', text_kn: 'ಮೆಟ್ಟಿಲು ಹತ್ತುವುದು, ನೆಲದಿಂದ ಏಳುವುದು ಕಷ್ಟ' },
+            { value: 'requires_support', text_en: 'Severe pain, requires stick or human support to walk', text_hi: 'अधिक दर्द, चलने के लिए सहारे की आवश्यकता', text_kn: 'ತೀವ್ರ ನೋವು, ನಡೆಯಲು ಊರುಗೋಲು ಅಥವಾ ಇತರರ ನೆರವು ಬೇಕು' }
+          ],
+          progress: { current: 4, total: TOTAL_QUESTIONS, percent: 80 }
+        };
+      } else {
+        return {
+          id: 'ay_str_q4',
+          clinical_field: 'stress_appetite',
+          sequence: 4,
+          question_type: 'single_choice',
+          question_text_en: 'Agni Pariksha: How does this mental stress affect your hunger and food digestion?',
+          question_text_hi: 'अग्नि परीक्षा: इस तनाव का आपकी भूख और पाचन पर क्या असर पड़ता है?',
+          question_text_kn: 'ಅಗ್ನಿ ಪರೀಕ್ಷೆ: ಈ ಒತ್ತಡ ನಿಮ್ಮ ಹಸಿವು ಮತ್ತು ಜೀರ್ಣಕ್ರಿಯೆಯ ಮೇಲೆ ಹೇಗೆ ಪರಿಣಾಮ ಬೀರುತ್ತದೆ?',
+          options: [
+            { value: 'loss_of_appetite', text_en: 'Complete loss of appetite, forget to eat meals (Vishama Agni)', text_hi: 'भूख पूरी तरह खत्म हो जाती है, खाना भूल जाते हैं', text_kn: 'ಹಸಿವಾಗುವುದಿಲ್ಲ, ಊಟವನ್ನೇ ಮರೆತುಬಿಡುತ್ತೇನೆ' },
+            { value: 'acid_reflux_craving', text_en: 'Excessive cravings for sugar, coffee, or sharp acid reflux (Tikshna Agni)', text_hi: 'मीठा या चाय-कॉफ़ी की तीव्र तलब, एसिडिटी', text_kn: 'ಸಿಹಿ ಅಥವಾ ಚಹಾ-ಕಾಫಿಯ ಹಂಬಲ, ಅಸಿಡಿಟಿ' },
+            { value: 'digestive_heaviness', text_en: 'Digestive heaviness, food feels undigested (Manda Agni)', text_hi: 'पेट में भारीपन, खाना न पचना', text_kn: 'ಹೊಟ್ಟೆ ಭಾರ, ಜೀರ್ಣವಾಗದಿರುವುದು' },
+            { value: 'normal_meals', text_en: 'Appetite remains largely normal and unaffected', text_hi: 'भूख सामान्य रहती है, कोई विशेष बदलाव नहीं', text_kn: 'ಹಸಿವು ಸಾಮಾನ್ಯವಾಗಿರುತ್ತದೆ' }
+          ],
+          progress: { current: 4, total: TOTAL_QUESTIONS, percent: 80 }
+        };
+      }
+    }
+
+    // Step 5: Final synthesis
+    if (answeredCount === 4) {
+      return {
+        id: 'ay_gen_q5',
+        clinical_field: 'prakriti_temp',
+        sequence: 5,
+        question_type: 'single_choice',
+        question_text_en: 'Prakriti & Bala: How would you describe your natural energy stamina and temperature tolerance?',
+        question_text_hi: 'प्रकृति व बल: आपकी शारीरिक शक्ति और तापमान सहनशीलता कैसी है?',
+        question_text_kn: 'ಪ್ರಕೃತಿ ಮತ್ತು ಬಲ: ನಿಮ್ಮ ನೈಸರ್ಗಿಕ ಶಕ್ತಿ ಮತ್ತು ತಾಪಮಾನ ಸಹಿಷ್ಣುತೆ ಹೇಗಿದೆ?',
+        options: [
+          { value: 'vata_cold_slender', text_en: 'Slender build, sensitive to cold breeze, quick fatigue (Vata)', text_hi: 'दुबला शरीर, ठंड जल्दी लगती है, ऊर्जा जल्दी खत्म होती है (वात)', text_kn: 'ತೆಳ್ಳನೆಯ ದೇಹ, ಚಳಿ ಸಹಿಸಲಾಗುವುದಿಲ್ಲ, ಬೇಗನೆ ಸುಸ್ತಾಗುತ್ತದೆ (ವಾತ)' },
+          { value: 'pitta_warm_medium', text_en: 'Medium build, sweats easily, intolerant to heat (Pitta)', text_hi: 'मध्यम गठन, गर्मी सहन नहीं होती, पसीना जल्दी आता है (पित्त)', text_kn: 'ಮಧ್ಯಮ ದೇಹ, ಸೆಖೆ ಸಹಿಸಲಾಗುವುದಿಲ್ಲ, ಬೇಗ ಬೆವರುತ್ತದೆ (ಪಿತ್ತ)' },
+          { value: 'kapha_solid_calm', text_en: 'Solid heavy build, calm endurance, slow digestion (Kapha)', text_hi: 'मजबूत चौड़ा शरीर, अच्छा शारीरिक बल, शांत स्वभाव (कफ)', text_kn: 'ದೃಢವಾದ ದೇಹ, ಉತ್ತಮ ಶಕ್ತಿ ಮತ್ತು ಸಹಿಷ್ಣುತೆ (ಕಫ)' }
+        ],
+        progress: { current: 5, total: TOTAL_QUESTIONS, percent: 95 }
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // ALLOPATHY ADAPTIVE QUESTION TREE
+  // --------------------------------------------------------------------------
+  if (system === 'allopathy') {
+    if (answeredCount === 1) {
+      if (q1Answer.includes('pressure') || q1Answer.includes('pain')) {
+        return {
+          id: 'cp_rad_q2',
+          clinical_field: 'radiation',
+          sequence: 2,
+          question_type: 'single_choice',
+          question_text_en: 'Does the chest discomfort radiate to any other parts of your body?',
+          question_text_hi: 'क्या छाती का दर्द शरीर के किसी अन्य हिस्से में फैलता है?',
+          question_text_kn: 'ಎದೆ ನೋವು ದೇಹದ ಯಾವುದೇ ಇತರ ಭಾಗಗಳಿಗೆ ಹರಡುತ್ತದೆಯೇ?',
+          options: [
+            { value: 'left arm', text_en: 'Radiating to left arm or shoulder', text_hi: 'बाएं हाथ या कंधे में जाता है', text_kn: 'ಎಡಗೈ ಅಥವಾ ಭುಜಕ್ಕೆ ಹರಡುತ್ತದೆ' },
+            { value: 'jaw', text_en: 'Radiating to neck or jaw', text_hi: 'गर्दन या जबड़े में जाता है', text_kn: 'ಕುತ್ತಿಗೆ ಅಥವಾ ದವಡೆಗೆ ಹರಡುತ್ತದೆ' },
+            { value: 'back', text_en: 'Radiating to back between shoulder blades', text_hi: 'पीठ में दोनों कंधों के बीच जाता है', text_kn: 'ಬೆನ್ನಿಗೆ ಹರಡುತ್ತದೆ' },
+            { value: 'no_radiation', text_en: 'Localized to chest, does not radiate', text_hi: 'केवल छाती में, कहीं नहीं फैलता', text_kn: 'ಕೇವಲ ಎದೆಯಲ್ಲಿ ಮಾತ್ರ' }
+          ],
+          progress: { current: 2, total: TOTAL_QUESTIONS, percent: 40 }
+        };
+      } else if (q1Answer.includes('burn')) {
+        return {
+          id: 'cp_burn_q2',
+          clinical_field: 'burning_posture',
+          sequence: 2,
+          question_type: 'single_choice',
+          question_text_en: 'Does this burning sensation worsen after meals or when lying flat?',
+          question_text_hi: 'क्या यह जलन भोजन के बाद या सीधे लेटने पर बढ़ जाती है?',
+          question_text_kn: 'ಈ ಉರಿತವು ಊಟದ ನಂತರ ಅಥವಾ ಮಲಗಿದಾಗ ಹೆಚ್ಚಾಗುತ್ತದೆಯೇ?',
+          options: [
+            { value: 'worse_lying_flat', text_en: 'Worsens significantly when lying flat in bed', text_hi: 'बिस्तर पर लेटने पर बहुत बढ़ जाता है', text_kn: 'ಮಲಗಿದಾಗ ತೀವ್ರವಾಗಿ ಹೆಚ್ಚಾಗುತ್ತದೆ' },
+            { value: 'relieved_antacids', text_en: 'Relieved by antacids or cold milk', text_hi: 'एंटासिड या ठंडे दूध से आराम मिलता है', text_kn: 'ಆಂಟಾಸಿಡ್ ಅಥವಾ ತಣ್ಣನೆಯ ಹಾಲಿನಿಂದ ಶಮನ' },
+            { value: 'worse_exertion', text_en: 'Worsens during physical exertion or walking', text_hi: 'चलने या मेहनत करने पर बढ़ता है', text_kn: 'ನಡೆದಾಗ ಅಥವಾ ವ್ಯಾಯಾಮದಿಂದ ಹೆಚ್ಚಾಗುತ್ತದೆ' },
+            { value: 'constant_burning', text_en: 'Constant burning irrespective of posture', text_hi: 'लगातार जलन, स्थिति का कोई असर नहीं', text_kn: 'ಯಾವಾಗಲೂ ನಿರಂತರ ಉರಿತ' }
+          ],
+          progress: { current: 2, total: TOTAL_QUESTIONS, percent: 40 }
+        };
+      } else {
+        return {
+          id: 'cp_sob_q2',
+          clinical_field: 'rest_vs_exertion',
+          sequence: 2,
+          question_type: 'single_choice',
+          question_text_en: 'Does the breathlessness occur even when sitting completely still at rest?',
+          question_text_hi: 'क्या सांस फूलने की समस्या आराम से बैठे रहने पर भी होती है?',
+          question_text_kn: 'ವಿಶ್ರಾಂತಿಯಲ್ಲಿ ಕುಳಿತಾಗಲೂ ಉಸಿರಾಟದ ತೊಂದರೆ ಉಂಟಾಗುತ್ತದೆಯೇ?',
+          options: [
+            { value: 'rest_breathless', text_en: 'Yes, breathless even at complete rest', text_hi: 'हाँ, आराम से बैठने पर भी सांस फूलती है', text_kn: 'ಹೌದು, ವಿಶ್ರಾಂತಿಯಲ್ಲೂ ಉಸಿರಾಟ ಕಷ್ಟ' },
+            { value: 'exertion_only', text_en: 'Only when walking, climbing stairs, or carrying weights', text_hi: 'केवल चलने या सीढ़ियां चढ़ने पर', text_kn: 'ಕೇವಲ ನಡೆದಾಗ ಅಥವಾ ಮೆಟ್ಟಿಲು ಹತ್ತಿದಾಗ' },
+            { value: 'night_waking', text_en: 'Awakens from sleep gasping for air (PND)', text_hi: 'रात में सांस टूटने से अचानक नींद खुल जाती है', text_kn: 'ರಾತ್ರಿ ಉಸಿರುಗಟ್ಟಿ ಎಚ್ಚರವಾಗುವುದು' }
+          ],
+          progress: { current: 2, total: TOTAL_QUESTIONS, percent: 40 }
+        };
+      }
+    }
+
+    if (answeredCount === 2) {
+      return {
+        id: 'cp_assoc_q3',
+        clinical_field: 'associated_symptoms',
+        sequence: 3,
+        question_type: 'single_choice',
+        question_text_en: 'Are you experiencing associated cold sweating (diaphoresis), nausea, or lightheadedness?',
+        question_text_hi: 'क्या आपको ठंडा पसीना, मिचली या चक्कर आने का अनुभव हो रहा है?',
+        question_text_kn: 'ನಿಮಗೆ ತಣ್ಣನೆಯ ಬೆವರು, ವಾಕರಿಕೆ ಅಥವಾ ತಲೆತಿರುಗುವಿಕೆ ಉಂಟಾಗುತ್ತಿದೆಯೇ?',
+        options: [
+          { value: 'cold_sweats_nausea', text_en: 'Profuse cold sweats and nausea', text_hi: 'बहुत अधिक ठंडा पसीना और मिचली', text_kn: 'ಅತಿಯಾದ ತಣ್ಣನೆಯ ಬೆವರು ಮತ್ತು ವಾಕರಿಕೆ' },
+          { value: 'syncope_fainting', text_en: 'Fainting or momentary blackout (Syncope)', text_hi: 'बेहोशी या चक्कर खाकर गिरना', text_kn: 'ಪ್ರಜ್ಞೆ ತಪ್ಪುವುದು ಅಥವಾ ಮೂರ್ಛೆ' },
+          { value: 'mild_dizziness', text_en: 'Mild dizziness without fainting', text_hi: 'हल्का चक्कर आना', text_kn: 'ಸೌಮ್ಯ ತಲೆತಿರುಗುವಿಕೆ' },
+          { value: 'none_associated', text_en: 'None of these associated symptoms', text_hi: 'इनमें से कोई लक्षण नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+        ],
+        progress: { current: 3, total: TOTAL_QUESTIONS, percent: 60 }
+      };
+    }
+
+    if (answeredCount === 3) {
+      return {
+        id: 'cp_sev_q4',
+        clinical_field: 'severity',
+        sequence: 4,
+        question_type: 'number',
+        question_text_en: 'Pain Severity: On a scale of 1 to 10, how intense is your discomfort right now?',
+        question_text_hi: 'दर्द की तीव्रता: 1 से 10 के पैमाने पर, आपका दर्द कितना तीव्र है?',
+        question_text_kn: 'ನೋವಿನ ತೀವ್ರತೆ: 1 ರಿಂದ 10 ರ ಪ್ರಮಾಣದಲ್ಲಿ, ನೋವು ಎಷ್ಟು ತೀವ್ರವಾಗಿದೆ?',
+        progress: { current: 4, total: TOTAL_QUESTIONS, percent: 80 }
+      };
+    }
+
+    if (answeredCount === 4) {
+      return {
+        id: 'cp_meds_q5',
+        clinical_field: 'medical_history',
+        sequence: 5,
+        question_type: 'single_choice',
+        question_text_en: 'Do you have any known medical conditions or take regular medications?',
+        question_text_hi: 'क्या आपको पहले से कोई बीमारी है या नियमित दवाएं ले रहे हैं?',
+        question_text_kn: 'ನಿಮಗೆ ಮೊದಲೇ ಯಾವುದೇ ಕಾಯಿಲೆಗಳಿವೆಯೇ ಅಥವಾ ನಿಯಮಿತ ಔಷಧಿಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳುತ್ತಿದ್ದೀರಾ?',
+        options: [
+          { value: 'hypertension', text_en: 'Hypertension (High Blood Pressure)', text_hi: 'उच्च रक्तचाप (हाई बीपी)', text_kn: 'ರಕ್ತದೊತ್ತಡ (ಹೈ ಬಿಪಿ)' },
+          { value: 'diabetes', text_en: 'Diabetes Mellitus', text_hi: 'मधुमेह (शुगर)', text_kn: 'ಮಧುಮೇಹ (ಡಯಾಬಿಟಿಸ್)' },
+          { value: 'both_htn_dm', text_en: 'Both High BP and Diabetes', text_hi: 'हाई बीपी और शुगर दोनों', text_kn: 'ಬಿಪಿ ಮತ್ತು ಶುಗರ್ ಎರಡೂ' },
+          { value: 'known_heart', text_en: 'Previous heart stent / angioplasty / CAD', text_hi: 'पूर्व हृदय रोग / स्टेंट / एंजियोप्लास्टी', text_kn: 'ಹೃದಯ ಸಂಬಂಧಿ ಕಾಯಿಲೆ / ಸ್ಟೆಂಟ್' },
+          { value: 'none', text_en: 'No known chronic conditions', text_hi: 'कोई पुरानी बीमारी नहीं', text_kn: 'ಯಾವುದೇ ದೀರ್ಘಕಾಲಿಕ ಕಾಯಿಲೆ ಇಲ್ಲ' }
+        ],
+        progress: { current: 5, total: TOTAL_QUESTIONS, percent: 95 }
+      };
+    }
+  }
+
+  return null;
+}
+
 export const StandaloneMockEngine = {
   getPatients: () => ({ success: true, patients: SEED_PATIENTS }),
 
@@ -738,12 +1053,15 @@ export const StandaloneMockEngine = {
       is_red_flag: isRedFlag
     });
 
-    // Find next unanswered question
-    const answeredQuestionIds = new Set(localAnswers.filter(a => a.session_id === sessionId).map(a => a.question_id));
-    const nextQ = systemQuestions.find(q => !answeredQuestionIds.has(q.id));
+    const answersForSession = localAnswers.filter(a => a.session_id === sessionId);
+    const nextQ = generateAdaptiveNextQuestion({
+      session,
+      lastAnswer: answer,
+      answersForSession
+    });
 
-    const total = systemQuestions.length;
-    const answeredCount = answeredQuestionIds.size;
+    const total = 5;
+    const answeredCount = answersForSession.length;
     const percent = Math.min(100, Math.round((answeredCount / total) * 100));
 
     if (!nextQ) {
@@ -817,13 +1135,13 @@ export const StandaloneMockEngine = {
         type: nextQ.question_type,
         text: lang === 'hi' ? nextQ.question_text_hi : lang === 'kn' ? (nextQ.question_text_kn || nextQ.question_text_en) : nextQ.question_text_en,
         sequence: nextQ.sequence,
-        required: nextQ.required,
+        required: nextQ.required !== false,
         options: (nextQ.options || []).map(opt => ({
           value: opt.value,
           text: lang === 'hi' ? opt.text_hi : lang === 'kn' ? (opt.text_kn || opt.text_en) : opt.text_en
         }))
       },
-      progress: { current: answeredCount + 1, total, percent },
+      progress: nextQ.progress || { current: answeredCount + 1, total, percent },
       isRedFlag,
       redFlags: triggeredFlags
     };

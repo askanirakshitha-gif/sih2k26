@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic, MicOff, Volume2, ArrowRight, ArrowLeft, CheckCircle2,
   AlertTriangle, Upload, FileText, Stethoscope, Sparkles,
-  ShieldCheck, RefreshCw, ChevronRight, User, HeartPulse, Flower2
+  ShieldCheck, RefreshCw, ChevronRight, User, HeartPulse, Flower2,
+  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus
 } from 'lucide-react';
 import { KioskService } from '../services/api';
 import { defaultVoiceProvider } from '../services/voiceProvider';
@@ -27,8 +28,31 @@ export default function KioskApp({ onSwitchToDoctor }) {
     age: '',
     gender: 'Male',
     phone: '',
-    blood_group: 'B+'
+    blood_group: 'B+',
+    abha_id: '',
+    emergency_contact: ''
   });
+
+  // Walk-in Registration Options: 'abha' | 'phone' | 'manual'
+  const [regMethod, setRegMethod] = useState('abha');
+
+  // ABHA ID State
+  const [abhaInput, setAbhaInput] = useState('');
+  const [abhaStatus, setAbhaStatus] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
+  const [abhaPatient, setAbhaPatient] = useState(null);
+  const [abhaErrorMsg, setAbhaErrorMsg] = useState('');
+
+  // Phone + OTP State
+  const [phoneInput, setPhoneInput] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('4826');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [otpResendCountdown, setOtpResendCountdown] = useState(30);
+
+  // Form validation alert
+  const [regValidationError, setRegValidationError] = useState('');
 
   // Consent
   const [consentChecked, setConsentChecked] = useState(false);
@@ -69,6 +93,15 @@ export default function KioskApp({ onSwitchToDoctor }) {
     loadDemoPatients();
   }, []);
 
+  // Timer for OTP resend countdown
+  useEffect(() => {
+    let timer;
+    if (otpSent && otpResendCountdown > 0 && !otpVerified) {
+      timer = setTimeout(() => setOtpResendCountdown(prev => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [otpSent, otpResendCountdown, otpVerified]);
+
   const loadDemoPatients = async () => {
     try {
       const res = await KioskService.getPatients();
@@ -81,6 +114,224 @@ export default function KioskApp({ onSwitchToDoctor }) {
     }
   };
 
+  // Handle ABHA Lookup / Direct Fetch
+  const handleFetchAbha = (customAbha) => {
+    const queryAbha = (customAbha !== undefined ? customAbha : abhaInput).trim();
+    if (!queryAbha) {
+      setAbhaErrorMsg(
+        language === 'hi'
+          ? 'कृपया 14 अंकों की आभा आईडी दर्ज करें'
+          : language === 'kn'
+          ? 'ದಯವಿಟ್ಟು 14 ಅಂಕಿಯ ABHA ID ನಮೂದಿಸಿ'
+          : 'Please enter a 14-digit ABHA ID (e.g. 91-2345-6789-0123)'
+      );
+      setAbhaStatus('error');
+      return;
+    }
+
+    setAbhaStatus('loading');
+    setAbhaErrorMsg('');
+    setRegValidationError('');
+
+    setTimeout(() => {
+      const cleanInput = queryAbha.replace(/\D/g, '');
+      const matched = patients.find(p => {
+        if (!p.abha_id) return false;
+        const cleanP = p.abha_id.replace(/\D/g, '');
+        return cleanP === cleanInput || p.abha_id.toLowerCase() === queryAbha.toLowerCase();
+      });
+
+      if (matched) {
+        setSelectedPatient(matched);
+        setAbhaPatient(matched);
+        setNewPatientForm({
+          full_name: matched.full_name,
+          age: matched.age,
+          gender: matched.gender,
+          phone: matched.phone || '',
+          blood_group: matched.blood_group || 'B+',
+          abha_id: matched.abha_id,
+          emergency_contact: matched.emergency_contact || ''
+        });
+        setAbhaStatus('success');
+      } else if (cleanInput.length >= 10 || queryAbha.includes('@') || queryAbha.includes('-')) {
+        // Valid ABHA format outside demo seed - ABDM National Registry simulation fetch
+        const mockAbdmPatient = {
+          id: 'abha_' + Date.now(),
+          full_name: 'Vikram Malhotra',
+          age: 42,
+          gender: 'Male',
+          phone: '+91 98450 12345',
+          blood_group: 'O+',
+          abha_id: queryAbha,
+          abha_address: 'vikram@abdm'
+        };
+        setSelectedPatient(mockAbdmPatient);
+        setAbhaPatient(mockAbdmPatient);
+        setNewPatientForm({
+          full_name: mockAbdmPatient.full_name,
+          age: mockAbdmPatient.age,
+          gender: mockAbdmPatient.gender,
+          phone: mockAbdmPatient.phone,
+          blood_group: mockAbdmPatient.blood_group,
+          abha_id: mockAbdmPatient.abha_id,
+          emergency_contact: ''
+        });
+        setAbhaStatus('success');
+      } else {
+        setAbhaStatus('error');
+        setAbhaErrorMsg(
+          language === 'hi'
+            ? 'आभा आईडी रिकॉर्ड में नहीं मिली। कृपया 14 अंकों की सही आईडी डालें या मोबाइल से पंजीकरण करें।'
+            : language === 'kn'
+            ? 'ABDM ದಾಖಲೆಗಳಲ್ಲಿ ABHA ID ಕಂಡುಬಂದಿಲ್ಲ. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಐಡಿ ನಮೂದಿಸಿ ಅಥವಾ ಮೊಬೈಲ್ ಮೂಲಕ ನೋಂದಾಯಿಸಿ.'
+            : 'ABHA ID not found in ABDM registry. Please verify the 14-digit number or register via Phone / Direct entry.'
+        );
+      }
+    }, 500);
+  };
+
+  // Handle Send OTP
+  const handleSendOtp = (customPhone) => {
+    const raw = (customPhone !== undefined ? customPhone : phoneInput).trim();
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setOtpError(
+        language === 'hi'
+          ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।'
+          : language === 'kn'
+          ? 'ದಯವಿಟ್ಟು 10 ಅಂಕಿಯ ಮಾನ್ಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ.'
+          : 'Please enter a valid 10-digit mobile number.'
+      );
+      return;
+    }
+    setOtpError('');
+    setRegValidationError('');
+    const newCode = '4826'; // fixed test code
+    setGeneratedOtp(newCode);
+    setOtpSent(true);
+    setOtpVerified(false);
+    setOtpInput('');
+    setOtpResendCountdown(30);
+  };
+
+  // Handle Verify OTP
+  const handleVerifyOtp = () => {
+    const trimmed = otpInput.trim();
+    if (!trimmed) {
+      setOtpError(
+        language === 'hi'
+          ? 'कृपया भेजा गया 4 अंकों का ओटीपी दर्ज करें।'
+          : language === 'kn'
+          ? 'ದಯವಿಟ್ಟು ಕಳುಹಿಸಲಾದ 4 ಅಂಕಿಯ OTP ನಮೂದಿಸಿ.'
+          : 'Please enter the 4-digit OTP.'
+      );
+      return;
+    }
+
+    if (trimmed === generatedOtp || trimmed === '1234' || trimmed === '4826') {
+      setOtpVerified(true);
+      setOtpError('');
+      setRegValidationError('');
+
+      // Check if phone matches an existing registered patient
+      const cleanPhone = phoneInput.replace(/\D/g, '');
+      const matched = patients.find(p => p.phone && p.phone.replace(/\D/g, '').includes(cleanPhone));
+      if (matched) {
+        setSelectedPatient(matched);
+        setNewPatientForm({
+          full_name: matched.full_name,
+          age: matched.age,
+          gender: matched.gender,
+          phone: matched.phone || phoneInput,
+          blood_group: matched.blood_group || 'B+',
+          abha_id: matched.abha_id || '',
+          emergency_contact: matched.emergency_contact || ''
+        });
+      } else {
+        setNewPatientForm(prev => ({
+          ...prev,
+          phone: phoneInput.startsWith('+91') ? phoneInput : `+91 ${phoneInput}`
+        }));
+      }
+    } else {
+      setOtpError(
+        language === 'hi'
+          ? 'अमान्य ओटीपी कोड। कृपया एसएमएस में दिए गए 4 अंक फिर से दर्ज करें।'
+          : language === 'kn'
+          ? 'ಅಮಾನ್ಯ OTP ಕೋಡ್. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಕೋಡ್ ನಮೂದಿಸಿ.'
+          : 'Invalid OTP code. Please enter the demo code shown in SMS banner.'
+      );
+    }
+  };
+
+  // Handle Proceed to Consent
+  const handleProceedToConsent = () => {
+    setRegValidationError('');
+
+    if (!isNewPatient) {
+      if (!selectedPatient) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'जारी रखने के लिए कृपया सूची से एक मरीज चुनें।'
+            : language === 'kn'
+            ? 'ಮುಂದುವರಿಯಲು ದಯವಿಟ್ಟು ರೋಗಿಯನ್ನು ಆಯ್ಕೆಮಾಡಿ.'
+            : 'Please select a patient from the list to continue.'
+        );
+        return;
+      }
+      setStep('CONSENT');
+      return;
+    }
+
+    if (regMethod === 'abha') {
+      if (abhaStatus !== 'success' || !newPatientForm.full_name) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'कृपया जारी रखने से पहले अपनी आभा (ABHA) आईडी सत्यापित करके विवरण प्राप्त करें।'
+            : language === 'kn'
+            ? 'ಮುಂದುವರಿಯುವ ಮೊದಲು ದಯವಿಟ್ಟು ನಿಮ್ಮ ABHA ID ಯನ್ನು ಪರಿಶೀಲಿಸಿ ವಿವರ ಪಡೆಯಿರಿ.'
+            : 'Please fetch your ABHA ID details first before continuing.'
+        );
+        return;
+      }
+    } else if (regMethod === 'phone') {
+      if (!otpVerified) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'कृपया पहले ओटीपी (OTP) से अपना मोबाइल नंबर सत्यापित करें।'
+            : language === 'kn'
+            ? 'ದಯವಿಟ್ಟು ಮೊದಲು OTP ಮೂಲಕ ನಿಮ್ಮ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ಪರಿಶೀಲಿಸಿ.'
+            : 'Please verify your mobile number with the SMS OTP first.'
+        );
+        return;
+      }
+      if (!newPatientForm.full_name?.trim() || !newPatientForm.age) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'कृपया मरीज का नाम और आयु दर्ज करें।'
+            : language === 'kn'
+            ? 'ದಯವಿಟ್ಟು ರೋಗಿಯ ಹೆಸರು ಮತ್ತು ವಯಸ್ಸನ್ನು ನಮೂದಿಸಿ.'
+            : 'Please enter patient full name and age.'
+        );
+        return;
+      }
+    } else if (regMethod === 'manual') {
+      if (!newPatientForm.full_name?.trim() || !newPatientForm.age) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'कृपया मरीज का नाम और आयु दर्ज करें।'
+            : language === 'kn'
+            ? 'ದಯವಿಟ್ಟು ರೋಗಿಯ ಹೆಸರು ಮತ್ತು ವಯಸ್ಸನ್ನು ನಮೂದಿಸಿ.'
+            : 'Please enter patient full name and age.'
+        );
+        return;
+      }
+    }
+
+    setStep('CONSENT');
+  };
+
   // Start Session
   const handleStartSession = async () => {
     setIsLoading(true);
@@ -88,10 +339,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
       let finalPatientId = selectedPatient ? selectedPatient.id : null;
 
       if (isNewPatient && newPatientForm.full_name) {
-        const regRes = await KioskService.registerPatient(newPatientForm);
-        if (regRes.success) {
-          finalPatientId = regRes.patient.id;
-          setSelectedPatient(regRes.patient);
+        if (selectedPatient && selectedPatient.id && !String(selectedPatient.id).startsWith('abha_')) {
+          finalPatientId = selectedPatient.id;
+        } else {
+          const regRes = await KioskService.registerPatient(newPatientForm);
+          if (regRes.success) {
+            finalPatientId = regRes.patient.id;
+            setSelectedPatient(regRes.patient);
+          }
         }
       }
 
@@ -148,6 +403,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
             );
             if (matched) {
               setSelectedOption(matched.value);
+              handleAutoSubmit(matched.value);
+            }
+          } else if (currentQuestion && currentQuestion.type === 'yes_no') {
+            const lower = text.toLowerCase();
+            if (lower.includes('yes') || lower.includes('हाँ') || lower.includes('ಹೌದು')) {
+              handleAutoSubmit('yes');
+            } else if (lower.includes('no') || lower.includes('नहीं') || lower.includes('ಇಲ್ಲ')) {
+              handleAutoSubmit('no');
             }
           }
         },
@@ -178,23 +441,24 @@ export default function KioskApp({ onSwitchToDoctor }) {
     setIsListening(false);
   };
 
-  // Submit Answer & Fetch Next Question
-  const handleSubmitAnswer = async () => {
-    if (!currentQuestion || !sessionId) return;
+  // Submit Answer & Fetch Next Dynamically Generated Question
+  const handleSubmitAnswer = async (directAnswer) => {
+    if (!currentQuestion || !sessionId || isLoading) return;
 
-    let finalAnswer = '';
-    if (currentQuestion.type === 'multiple_choice') {
-      finalAnswer = selectedMultiple.join(', ');
-    } else if (currentQuestion.type === 'single_choice' || currentQuestion.type === 'yes_no') {
-      finalAnswer = selectedOption || textInput;
-    } else if (currentQuestion.type === 'number') {
-      finalAnswer = String(numberInput);
-    } else {
-      finalAnswer = textInput || selectedOption;
+    let finalAnswer = directAnswer !== undefined ? directAnswer : '';
+    if (!finalAnswer) {
+      if (currentQuestion.type === 'multiple_choice') {
+        finalAnswer = selectedMultiple.join(', ');
+      } else if (currentQuestion.type === 'single_choice' || currentQuestion.type === 'yes_no') {
+        finalAnswer = selectedOption || textInput;
+      } else if (currentQuestion.type === 'number') {
+        finalAnswer = String(numberInput);
+      } else {
+        finalAnswer = textInput || selectedOption;
+      }
     }
 
     if (!finalAnswer && currentQuestion.required) {
-      alert(language === 'hi' ? 'कृपया आगे बढ़ने से पहले उत्तर चुनें या बोलें।' : language === 'kn' ? 'ದಯವಿಟ್ಟು ಮುಂದುವರಿಯುವ ಮೊದಲು ಉತ್ತರವನ್ನು ಆರಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ.' : 'Please select or speak an answer before continuing.');
       return;
     }
 
@@ -241,7 +505,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setProgress(res.progress);
           resetInputState();
 
-          // If no red flag modal is blocking, read out next question
+          // Read out next dynamically generated question
           if (!res.isRedFlag) {
             defaultVoiceProvider.speak(res.nextQuestion.text, { language });
           }
@@ -253,6 +517,13 @@ export default function KioskApp({ onSwitchToDoctor }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Immediate Auto-Submit upon patient selection
+  const handleAutoSubmit = (val) => {
+    if (isLoading) return;
+    setSelectedOption(val);
+    handleSubmitAnswer(val);
   };
 
   // Document Upload Handlers
@@ -514,7 +785,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
             {/* Toggle demo vs new */}
             <div className="flex gap-3 mb-6">
               <button
-                onClick={() => setIsNewPatient(false)}
+                onClick={() => {
+                  setIsNewPatient(false);
+                  setRegValidationError('');
+                }}
                 className={`flex-1 py-3 font-bold text-sm rounded-xl border-2 transition ${
                   !isNewPatient ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-600'
                 }`}
@@ -522,7 +796,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
                 {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : language === 'kn' ? 'ನೋಂದಾಯಿತ ಡೆಮೊ ರೋಗಿಗಳು' : 'Existing Demo Patients'}
               </button>
               <button
-                onClick={() => setIsNewPatient(true)}
+                onClick={() => {
+                  setIsNewPatient(true);
+                  setRegValidationError('');
+                }}
                 className={`flex-1 py-3 font-bold text-sm rounded-xl border-2 transition ${
                   isNewPatient ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-600'
                 }`}
@@ -564,54 +841,565 @@ export default function KioskApp({ onSwitchToDoctor }) {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+              <div className="space-y-6 mb-8">
+                {/* 3 Walk-in Registration Options */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('fullNameLabel')}</label>
-                  <input
-                    type="text"
-                    value={newPatientForm.full_name}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, full_name: e.target.value })}
-                    placeholder="e.g. Ramesh Sharma"
-                    className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none"
-                  />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    {language === 'hi' ? 'पंजीकरण का तरीका चुनें' : language === 'kn' ? 'ನೋಂದಣಿ ವಿಧಾನವನ್ನು ಆಯ್ಕೆಮಾಡಿ' : 'Select Walk-in Registration Method'}
+                  </label>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Option 1: ABHA ID */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegMethod('abha');
+                        setRegValidationError('');
+                      }}
+                      className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between ${
+                        regMethod === 'abha'
+                          ? 'border-sky-600 bg-sky-50/80 shadow-sm ring-1 ring-sky-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`p-2.5 rounded-xl ${regMethod === 'abha' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                          <CreditCard className="w-5 h-5" />
+                        </div>
+                        {regMethod === 'abha' && (
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-600 text-white">Active</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          {language === 'hi' ? 'आभा (ABHA) आईडी' : language === 'kn' ? 'ABHA ಐಡಿ' : 'ABHA Health ID'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {language === 'hi' ? 'सीधे विवरण प्राप्त करें' : language === 'kn' ? 'ನೇರ ವಿವರ ಪಡೆಯಿರಿ' : 'Direct ABDM Fetch'}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Phone + OTP */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegMethod('phone');
+                        setRegValidationError('');
+                      }}
+                      className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between ${
+                        regMethod === 'phone'
+                          ? 'border-sky-600 bg-sky-50/80 shadow-sm ring-1 ring-sky-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`p-2.5 rounded-xl ${regMethod === 'phone' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                          <Smartphone className="w-5 h-5" />
+                        </div>
+                        {regMethod === 'phone' && (
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-600 text-white">Active</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          {language === 'hi' ? 'मोबाइल और ओटीपी' : language === 'kn' ? 'ಮೊಬೈಲ್ ಮತ್ತು ಒಟಿಪಿ' : 'Phone Number'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {language === 'hi' ? 'ओटीपी सत्यापन' : language === 'kn' ? 'OTP ಪರಿಶೀಲನೆ' : 'OTP Verified Intake'}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Option 3: Name with Details */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegMethod('manual');
+                        setRegValidationError('');
+                      }}
+                      className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between ${
+                        regMethod === 'manual'
+                          ? 'border-sky-600 bg-sky-50/80 shadow-sm ring-1 ring-sky-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`p-2.5 rounded-xl ${regMethod === 'manual' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                          <UserPlus className="w-5 h-5" />
+                        </div>
+                        {regMethod === 'manual' && (
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-600 text-white">Active</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          {language === 'hi' ? 'नाम व विवरण' : language === 'kn' ? 'ಹೆಸರು ಮತ್ತು ವಿವರ' : 'Name with Details'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {language === 'hi' ? 'सीधा मैनुअल पंजीकरण' : language === 'kn' ? 'ನೇರ ನೋಂದಣಿ' : 'Manual Walk-in Entry'}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('ageLabel')}</label>
-                  <input
-                    type="number"
-                    value={newPatientForm.age}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, age: e.target.value })}
-                    placeholder="e.g. 54"
-                    className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('genderLabel')}</label>
-                  <select
-                    value={newPatientForm.gender}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, gender: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white"
-                  >
-                    <option value="Male">{language === 'hi' ? 'पुरुष' : language === 'kn' ? 'ಪುರುಷ' : 'Male'}</option>
-                    <option value="Female">{language === 'hi' ? 'महिला' : language === 'kn' ? 'ಮಹಿಳೆ' : 'Female'}</option>
-                    <option value="Other">{language === 'hi' ? 'अन्य' : language === 'kn' ? 'ಇತರ' : 'Other'}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('phoneLabel')}</label>
-                  <input
-                    type="text"
-                    value={newPatientForm.phone}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, phone: e.target.value })}
-                    placeholder="+91 9876543210"
-                    className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none"
-                  />
-                </div>
+
+                {/* Sub-Panel 1: ABHA ID */}
+                {regMethod === 'abha' && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm flex items-center">
+                          <CreditCard className="w-4 h-4 mr-1.5 text-sky-600" />
+                          {language === 'hi' ? 'आयुष्मान भारत डिजिटल मिशन (ABHA) सत्यापन' : language === 'kn' ? 'ಆಯುಷ್ಮಾನ್ ಭಾರತ್ ಡಿಜಿಟಲ್ ಮಿಷನ್ (ABHA) ಪರಿಶೀಲನೆ' : 'Ayushman Bharat Health Account (ABHA) Direct Fetch'}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {language === 'hi' ? '14 अंकों का आभा नंबर डालें, सिस्टम सीधे आपका नाम और विवरण प्राप्त कर लेगा।' : language === 'kn' ? '14 ಅಂಕಿಯ ABHA ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ, ಸಿಸ್ಟಮ್ ನೇರವಾಗಿ ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪಡೆಯುತ್ತದೆ.' : 'Enter your 14-digit ABHA ID to automatically fetch demographics directly.'}
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-black rounded-lg uppercase tracking-wide">
+                        ABDM Govt
+                      </span>
+                    </div>
+
+                    {/* Input + Fetch Button */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={abhaInput}
+                          onChange={(e) => {
+                            setAbhaInput(e.target.value);
+                            setAbhaStatus('idle');
+                            setAbhaErrorMsg('');
+                          }}
+                          placeholder="e.g. 91-2345-6789-0123"
+                          className="w-full p-3 rounded-xl border border-slate-300 font-mono text-sm tracking-wide uppercase focus:ring-2 focus:ring-sky-500 outline-none bg-white"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={abhaStatus === 'loading'}
+                        onClick={() => handleFetchAbha()}
+                        className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50"
+                      >
+                        {abhaStatus === 'loading' ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Fetching...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-4 h-4" />
+                            <span>{language === 'hi' ? 'विवरण प्राप्त करें' : language === 'kn' ? 'ವಿವರ ಪಡೆಯಿರಿ' : 'Fetch Details'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Quick demo sample chips */}
+                    <div className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="font-semibold text-slate-600">Quick Demo Records:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAbhaInput('91-2345-6789-0123');
+                          handleFetchAbha('91-2345-6789-0123');
+                        }}
+                        className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
+                      >
+                        91-2345-6789-0123 (Ramesh)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAbhaInput('91-8765-4321-9876');
+                          handleFetchAbha('91-8765-4321-9876');
+                        }}
+                        className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
+                      >
+                        91-8765-4321-9876 (Sunita)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAbhaInput('91-1122-3344-5566');
+                          handleFetchAbha('91-1122-3344-5566');
+                        }}
+                        className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
+                      >
+                        91-1122-3344-5566 (Rajesh)
+                      </button>
+                    </div>
+
+                    {/* Error message */}
+                    {abhaStatus === 'error' && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>{abhaErrorMsg}</span>
+                      </div>
+                    )}
+
+                    {/* Fetched Details Card */}
+                    {abhaStatus === 'success' && abhaPatient && (
+                      <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl shadow-sm space-y-3">
+                        <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2.5">
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            <span className="font-extrabold text-emerald-900 text-sm">
+                              ABDM Verified Health Record Fetched
+                            </span>
+                          </div>
+                          <span className="text-xs font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                            {abhaPatient.abha_id}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                            <div className="text-slate-500 font-semibold uppercase text-[10px]">Full Name</div>
+                            <div className="font-bold text-slate-900 text-sm mt-0.5">{abhaPatient.full_name}</div>
+                          </div>
+                          <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                            <div className="text-slate-500 font-semibold uppercase text-[10px]">Age & Gender</div>
+                            <div className="font-bold text-slate-900 text-sm mt-0.5">{abhaPatient.age} Yrs • {abhaPatient.gender}</div>
+                          </div>
+                          <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                            <div className="text-slate-500 font-semibold uppercase text-[10px]">Phone</div>
+                            <div className="font-bold text-slate-900 text-sm mt-0.5">{abhaPatient.phone || 'N/A'}</div>
+                          </div>
+                          <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                            <div className="text-slate-500 font-semibold uppercase text-[10px]">Blood Group</div>
+                            <div className="font-bold text-slate-900 text-sm mt-0.5">{abhaPatient.blood_group || 'B+'}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-emerald-700 font-medium">
+                            ✓ Ready to proceed to consultation
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAbhaStatus('idle');
+                              setAbhaPatient(null);
+                              setSelectedPatient(null);
+                            }}
+                            className="text-xs text-slate-500 hover:text-slate-800 underline font-semibold"
+                          >
+                            Change / Re-fetch
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub-Panel 2: Phone + OTP */}
+                {regMethod === 'phone' && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm flex items-center">
+                          <Smartphone className="w-4 h-4 mr-1.5 text-sky-600" />
+                          {language === 'hi' ? 'मोबाइल नंबर और ओटीपी सत्यापन' : language === 'kn' ? 'ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಮತ್ತು ಒಟಿಪಿ ಪರಿಶೀಲನೆ' : 'Mobile Number & OTP Verification'}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {language === 'hi' ? 'अपना 10 अंकों का मोबाइल नंबर दर्ज करें और एसएमएस ओटीपी सत्यापित करें।' : language === 'kn' ? 'ನಿಮ್ಮ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ ಮತ್ತು SMS OTP ಪರಿಶೀಲಿಸಿ.' : 'Enter patient mobile number and verify via OTP before continuing.'}
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 bg-sky-100 text-sky-800 text-[11px] font-black rounded-lg uppercase tracking-wide">
+                        OTP Shield
+                      </span>
+                    </div>
+
+                    {/* Phone Input Row */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          disabled={otpVerified}
+                          value={phoneInput}
+                          onChange={(e) => {
+                            setPhoneInput(e.target.value);
+                            setOtpError('');
+                          }}
+                          placeholder="e.g. 9876543210"
+                          className="w-full p-3 rounded-xl border border-slate-300 font-mono text-sm tracking-wide focus:ring-2 focus:ring-sky-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </div>
+                      {!otpVerified ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSendOtp()}
+                          className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm"
+                        >
+                          <Smartphone className="w-4 h-4" />
+                          <span>{otpSent ? 'Resend OTP' : 'Send OTP'}</span>
+                        </button>
+                      ) : (
+                        <div className="px-4 py-3 bg-emerald-100 text-emerald-800 font-bold text-sm rounded-xl flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Verified</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick demo sample numbers */}
+                    {!otpVerified && (
+                      <div className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="font-semibold text-slate-600">Quick Samples:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhoneInput('+91 9876543210');
+                            handleSendOtp('+91 9876543210');
+                          }}
+                          className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
+                        >
+                          9876543210 (Ramesh)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhoneInput('+91 9812345678');
+                            handleSendOtp('+91 9812345678');
+                          }}
+                          className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
+                        >
+                          9812345678 (Sunita)
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Simulated SMS banner when OTP is sent */}
+                    {otpSent && !otpVerified && (
+                      <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between text-xs text-amber-900 font-semibold">
+                          <span className="flex items-center">
+                            <KeyRound className="w-4 h-4 mr-1.5 text-amber-700" />
+                            SMS Notification Simulation (Demo)
+                          </span>
+                          <span className="font-mono bg-amber-200/80 px-2 py-0.5 rounded text-amber-900 font-bold">
+                            Demo Code: {generatedOtp}
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-800">
+                          "Your MediKiosk security OTP for mobile registration is <strong>{generatedOtp}</strong>. Valid for 10 minutes."
+                        </p>
+
+                        {/* OTP Entry Box */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={otpInput}
+                            onChange={(e) => setOtpInput(e.target.value)}
+                            placeholder="Enter OTP"
+                            className="w-36 p-2.5 rounded-xl border border-amber-400 bg-white font-mono text-center font-extrabold tracking-widest text-base focus:ring-2 focus:ring-amber-500 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyOtp}
+                            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>Verify OTP</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOtpInput(generatedOtp);
+                            }}
+                            className="px-3 py-2 text-xs text-amber-800 font-bold hover:underline"
+                          >
+                            Auto-fill
+                          </button>
+                          {otpResendCountdown > 0 && (
+                            <span className="text-[11px] text-slate-500 ml-auto">
+                              Resend in {otpResendCountdown}s
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* OTP error display */}
+                    {otpError && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>{otpError}</span>
+                      </div>
+                    )}
+
+                    {/* Once OTP is verified: Patient demographics form */}
+                    {otpVerified && (
+                      <div className="p-4 bg-emerald-50/60 border border-emerald-300 rounded-2xl space-y-4">
+                        <div className="flex items-center space-x-2 text-emerald-800 text-xs font-bold">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Mobile Number Verified (+91 {phoneInput.replace(/\D/g, '').slice(-10)}). Please complete patient details:</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                              {t('fullNameLabel')} <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={newPatientForm.full_name}
+                              onChange={(e) => setNewPatientForm({ ...newPatientForm, full_name: e.target.value })}
+                              placeholder="e.g. Ramesh Sharma"
+                              className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                              {t('ageLabel')} <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              value={newPatientForm.age}
+                              onChange={(e) => setNewPatientForm({ ...newPatientForm, age: e.target.value })}
+                              placeholder="e.g. 54"
+                              className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">{t('genderLabel')}</label>
+                            <select
+                              value={newPatientForm.gender}
+                              onChange={(e) => setNewPatientForm({ ...newPatientForm, gender: e.target.value })}
+                              className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                            >
+                              <option value="Male">{language === 'hi' ? 'पुरुष' : language === 'kn' ? 'ಪುರುಷ' : 'Male'}</option>
+                              <option value="Female">{language === 'hi' ? 'महिला' : language === 'kn' ? 'ಮಹಿಳೆ' : 'Female'}</option>
+                              <option value="Other">{language === 'hi' ? 'अन्य' : language === 'kn' ? 'ಇತರ' : 'Other'}</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Blood Group</label>
+                            <select
+                              value={newPatientForm.blood_group}
+                              onChange={(e) => setNewPatientForm({ ...newPatientForm, blood_group: e.target.value })}
+                              className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                            >
+                              {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(bg => (
+                                <option key={bg} value={bg}>{bg}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub-Panel 3: Name with Details (Manual Entry) */}
+                {regMethod === 'manual' && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm flex items-center">
+                          <UserPlus className="w-4 h-4 mr-1.5 text-sky-600" />
+                          {language === 'hi' ? 'मरीज का व्यक्तिगत विवरण' : language === 'kn' ? 'ರೋಗಿಯ ವೈಯಕ್ತಿಕ ವಿವರಗಳು' : 'Patient Demographics & Walk-in Details'}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {language === 'hi' ? 'नाम, आयु, लिंग व अन्य विवरण सीधे भरें।' : language === 'kn' ? 'ಹೆಸರು, ವಯಸ್ಸು, ಲಿಂಗ ಮತ್ತು ಇತರ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ.' : 'Enter name, age, gender, phone and other walk-in patient information.'}
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 bg-slate-200 text-slate-700 text-[11px] font-black rounded-lg uppercase tracking-wide">
+                        Manual Entry
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          {t('fullNameLabel')} <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newPatientForm.full_name}
+                          onChange={(e) => setNewPatientForm({ ...newPatientForm, full_name: e.target.value })}
+                          placeholder="e.g. Ramesh Sharma"
+                          className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          {t('ageLabel')} <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={newPatientForm.age}
+                          onChange={(e) => setNewPatientForm({ ...newPatientForm, age: e.target.value })}
+                          placeholder="e.g. 54"
+                          className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t('genderLabel')}</label>
+                        <select
+                          value={newPatientForm.gender}
+                          onChange={(e) => setNewPatientForm({ ...newPatientForm, gender: e.target.value })}
+                          className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                        >
+                          <option value="Male">{language === 'hi' ? 'पुरुष' : language === 'kn' ? 'ಪುರುಷ' : 'Male'}</option>
+                          <option value="Female">{language === 'hi' ? 'महिला' : language === 'kn' ? 'ಮಹಿಳೆ' : 'Female'}</option>
+                          <option value="Other">{language === 'hi' ? 'अन्य' : language === 'kn' ? 'ಇತರ' : 'Other'}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t('phoneLabel')}</label>
+                        <input
+                          type="text"
+                          value={newPatientForm.phone}
+                          onChange={(e) => setNewPatientForm({ ...newPatientForm, phone: e.target.value })}
+                          placeholder="+91 9876543210"
+                          className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Blood Group</label>
+                        <select
+                          value={newPatientForm.blood_group}
+                          onChange={(e) => setNewPatientForm({ ...newPatientForm, blood_group: e.target.value })}
+                          className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                        >
+                          {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(bg => (
+                            <option key={bg} value={bg}>{bg}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          {language === 'hi' ? 'आपातकालीन संपर्क / पता' : language === 'kn' ? 'ತುರ್ತು ಸಂಪರ್ಕ / ವಿಳಾಸ' : 'Emergency Contact / Address (Optional)'}
+                        </label>
+                        <input
+                          type="text"
+                          value={newPatientForm.emergency_contact || ''}
+                          onChange={(e) => setNewPatientForm({ ...newPatientForm, emergency_contact: e.target.value })}
+                          placeholder="e.g. Ward 4, Civil Hospital Rd"
+                          className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Validation Error Notice */}
+            {regValidationError && (
+              <div className="mb-4 p-3.5 bg-rose-50 border-2 border-rose-300 text-rose-800 rounded-2xl text-sm font-bold flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0 text-rose-600" />
+                <span>{regValidationError}</span>
               </div>
             )}
 
             <button
-              onClick={() => setStep('CONSENT')}
+              onClick={handleProceedToConsent}
               className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-black text-lg rounded-2xl shadow-lg transition flex items-center justify-center space-x-2"
             >
               <span>{t('continueBtn')}</span>
@@ -773,48 +1561,53 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
               {/* QUESTION INPUT RENDERING ACCORDING TO QUESTION TYPE */}
               
-              {/* Type 1: Single Choice Options */}
+              {/* Type 1: Single Choice Options - Instant Auto-Submit */}
               {currentQuestion.type === 'single_choice' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                   {currentQuestion.options?.map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => setSelectedOption(opt.value)}
+                      disabled={isLoading}
+                      onClick={() => handleAutoSubmit(opt.value)}
                       className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
                         selectedOption === opt.value
-                          ? 'border-sky-600 bg-sky-50 text-sky-950 shadow-sm ring-2 ring-sky-200'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
+                          ? 'border-sky-600 bg-sky-50 text-sky-950 shadow-md ring-2 ring-sky-300 scale-[1.01]'
+                          : 'border-slate-200 hover:border-sky-400 text-slate-800 bg-white hover:bg-sky-50/40'
                       }`}
                     >
                       <span>{opt.text}</span>
-                      {selectedOption === opt.value && (
-                        <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2" />
+                      {selectedOption === opt.value ? (
+                        <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2 animate-bounce" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 ml-2" />
                       )}
                     </button>
                   ))}
                 </div>
               )}
 
-              {/* Type 2: Yes / No Big Touch Buttons */}
+              {/* Type 2: Yes / No Big Touch Buttons - Instant Auto-Submit */}
               {currentQuestion.type === 'yes_no' && (
                 <div className="grid grid-cols-2 gap-6 my-8">
                   <button
-                    onClick={() => setSelectedOption('yes')}
+                    disabled={isLoading}
+                    onClick={() => handleAutoSubmit('yes')}
                     className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
                       selectedOption === 'yes'
-                        ? 'border-red-500 bg-red-50 text-red-700 ring-4 ring-red-100'
-                        : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
+                        ? 'border-red-500 bg-red-50 text-red-700 ring-4 ring-red-100 scale-[1.02]'
+                        : 'border-slate-200 hover:border-red-300 text-slate-800 bg-white hover:bg-red-50/40'
                     }`}
                   >
                     {language === 'hi' ? 'हाँ (YES)' : language === 'kn' ? 'ಹೌದು (YES)' : 'YES'}
                   </button>
 
                   <button
-                    onClick={() => setSelectedOption('no')}
+                    disabled={isLoading}
+                    onClick={() => handleAutoSubmit('no')}
                     className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
                       selectedOption === 'no'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100'
-                        : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100 scale-[1.02]'
+                        : 'border-slate-200 hover:border-emerald-300 text-slate-800 bg-white hover:bg-emerald-50/40'
                     }`}
                   >
                     {language === 'hi' ? 'नहीं (NO)' : language === 'kn' ? 'ಇಲ್ಲ (NO)' : 'NO'}
@@ -824,90 +1617,135 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
               {/* Type 3: Multiple Choice */}
               {currentQuestion.type === 'multiple_choice' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                  {currentQuestion.options?.map((opt) => {
-                    const isChecked = selectedMultiple.includes(opt.value);
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          if (isChecked) {
-                            setSelectedMultiple(selectedMultiple.filter(v => v !== opt.value));
-                          } else {
-                            setSelectedMultiple([...selectedMultiple, opt.value]);
-                          }
-                        }}
-                        className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
-                          isChecked
-                            ? 'border-sky-600 bg-sky-50 text-sky-950 ring-2 ring-sky-200'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
-                        }`}
-                      >
-                        <span>{opt.text}</span>
-                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                          isChecked ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'
-                        }`}>
-                          {isChecked && <CheckCircle2 className="w-5 h-5" />}
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {currentQuestion.options?.map((opt) => {
+                      const isChecked = selectedMultiple.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedMultiple(selectedMultiple.filter(v => v !== opt.value));
+                            } else {
+                              setSelectedMultiple([...selectedMultiple, opt.value]);
+                            }
+                          }}
+                          className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
+                            isChecked
+                              ? 'border-sky-600 bg-sky-50 text-sky-950 ring-2 ring-sky-200'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
+                          }`}
+                        >
+                          <span>{opt.text}</span>
+                          <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
+                            isChecked ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'
+                          }`}>
+                            {isChecked && <CheckCircle2 className="w-5 h-5" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedMultiple.length > 0 && (
+                    <button
+                      disabled={isLoading}
+                      onClick={() => handleSubmitAnswer()}
+                      className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-md transition flex items-center justify-center space-x-2"
+                    >
+                      <span>{language === 'hi' ? 'उत्तर की पुष्टि करें' : language === 'kn' ? 'ದೃಢೀಕರಿಸಿ' : 'Confirm Selected Answers'}</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* Type 4: Number Slider (Pain Scale 1-10) */}
+              {/* Type 4: Pain Scale Touch Buttons (1-10) - Instant Auto-Submit */}
               {currentQuestion.type === 'number' && (
-                <div className="my-8 bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center">
-                  <div className="text-5xl font-black text-sky-700 mb-2">{numberInput} / 10</div>
-                  <p className="text-sm font-semibold text-slate-500 mb-6">
-                    {numberInput >= 8 ? (language === 'hi' ? '🚨 अत्यधिक दर्द (तत्काल प्राथमिकता)' : language === 'kn' ? '🚨 ತೀವ್ರ ನೋವು (ತುರ್ತು ಆದ್ಯತೆ)' : '🚨 Severe Pain (High Priority Triage)') : numberInput >= 5 ? (language === 'hi' ? 'मध्यम दर्द' : language === 'kn' ? 'ಮಧ್ಯಮ ನೋವು' : 'Moderate Pain') : (language === 'hi' ? 'हल्का दर्द' : language === 'kn' ? 'ಸೌಮ್ಯ ನೋವು' : 'Mild Discomfort')}
-                  </p>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    step="1"
-                    value={numberInput}
-                    onChange={(e) => setNumberInput(parseInt(e.target.value, 10))}
-                    className="w-full h-4 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-600"
-                  />
-                  <div className="flex justify-between text-xs font-bold text-slate-400 mt-2 px-1">
+                <div className="my-6 bg-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-4">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    {language === 'hi' ? 'दर्द का स्तर चुनें (1 हल्का - 10 अत्यधिक)' : language === 'kn' ? 'ನೋವಿನ ಪ್ರಮಾಣವನ್ನು ಆರಿಸಿ (1-10)' : 'Touch a number to rate your pain severity (1-10)'}
+                  </div>
+                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => handleAutoSubmit(String(num))}
+                        className={`p-3 sm:py-4 rounded-xl border-2 font-black text-lg sm:text-xl transition kiosk-touch-button ${
+                          num >= 8
+                            ? 'border-red-300 hover:border-red-600 hover:bg-red-50 text-red-700 bg-white'
+                            : num >= 5
+                            ? 'border-amber-300 hover:border-amber-600 hover:bg-amber-50 text-amber-700 bg-white'
+                            : 'border-slate-200 hover:border-sky-600 hover:bg-sky-50 text-slate-800 bg-white'
+                        } ${String(numberInput) === String(num) ? 'ring-2 ring-sky-500 bg-sky-100 font-extrabold' : ''}`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-slate-400 px-1">
                     <span>1 ({language === 'hi' ? 'हल्का' : language === 'kn' ? 'ಕಡಿಮೆ' : 'Mild'})</span>
                     <span>5 ({language === 'hi' ? 'मध्यम' : language === 'kn' ? 'ಮಧ್ಯಮ' : 'Moderate'})</span>
-                    <span>10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Unbearable'})</span>
+                    <span className="text-red-600">10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Emergency'})</span>
                   </div>
                 </div>
               )}
 
-              {/* Text Input Fallback */}
-              <div className="mt-4">
+              {/* Text Input Fallback with Enter key / Send button */}
+              <div className="mt-4 relative">
                 <input
                   type="text"
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && textInput.trim()) {
+                      handleAutoSubmit(textInput.trim());
+                    }
+                  }}
                   placeholder={t('typeAnswerPlaceholder')}
-                  className="w-full p-4 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none text-base"
+                  className="w-full p-4 pr-24 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none text-base bg-white"
                 />
+                {textInput.trim() && (
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => handleAutoSubmit(textInput.trim())}
+                    className="absolute right-3 top-2.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl transition flex items-center space-x-1 shadow-md"
+                  >
+                    <span>Send</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
             </div>
 
-            {/* Bottom Question Navigation Button */}
-            <div className="pt-6 border-t border-slate-200 flex justify-end">
-              <button
-                disabled={isLoading}
-                onClick={handleSubmitAnswer}
-                className="w-full sm:w-auto px-10 py-5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-black text-xl rounded-2xl shadow-xl transition kiosk-touch-button flex items-center justify-center space-x-3"
-              >
-                {isLoading ? (
-                  <RefreshCw className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    <span>{t('submitAnswerBtn')}</span>
-                    <ArrowRight className="w-6 h-6" />
-                  </>
-                )}
-              </button>
+            {/* Auto-advance Status / Feedback (No manual Next button) */}
+            <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-2 text-xs text-slate-400 font-medium">
+                <Sparkles className="w-4 h-4 text-sky-500 shrink-0" />
+                <span>
+                  {language === 'hi'
+                    ? 'उत्तर चुनते ही अगला प्रश्न अपने आप तैयार हो जाएगा'
+                    : language === 'kn'
+                    ? 'ಉತ್ತರ ಆರಿಸಿದ ತಕ್ಷಣ ಮುಂದಿನ ಪ್ರಶ್ನೆ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಸಿದ್ಧವಾಗುತ್ತದೆ'
+                    : 'Select any option to instantly auto-generate the next clinical question'}
+                </span>
+              </div>
+              {isLoading && (
+                <div className="flex items-center space-x-2 px-4 py-2 bg-sky-50 border border-sky-200 text-sky-800 rounded-xl text-xs font-bold animate-pulse shadow-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                  <span>
+                    {language === 'hi'
+                      ? 'आपके उत्तर के आधार पर अगला प्रश्न तैयार हो रहा है...'
+                      : language === 'kn'
+                      ? 'ಮುಂದಿನ ಪ್ರಶ್ನೆ ಸಿದ್ಧವಾಗುತ್ತಿದೆ...'
+                      : 'Auto-generating next question based on response...'}
+                  </span>
+                </div>
+              )}
             </div>
 
           </div>
