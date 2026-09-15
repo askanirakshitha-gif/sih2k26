@@ -51,6 +51,8 @@ class SessionInitRequest(BaseModel):
     system: Optional[str] = Field(default="allopathy")
     language: Optional[str] = Field(default="en")
     conditionId: Optional[str] = None
+    hospitalName: Optional[str] = None
+    hospitalId: Optional[str] = None
 
 class SessionInitResponse(BaseModel):
     success: bool = True
@@ -66,6 +68,7 @@ class SessionInitResponse(BaseModel):
     progress: Optional[ProgressInfo] = None
     system: Optional[str] = None
     language: Optional[str] = "en"
+    hospitalName: Optional[str] = None
 
 class EmergencyPayload(BaseModel):
     is_emergency: bool = True

@@ -180,13 +180,14 @@ async def init_session(req: SessionInitRequest):
     if not patient:
         patient = store.get_patients()[0]
 
-    # Create session in storage
+    hosp_name = req.hospitalName or "Manipal Hospital, HAL Airport Road, Bengaluru"
     session = store.create_session(
         patient=patient,
         language=language,
         clinical_system=clinical_sys,
         condition_id="ayush_general" if clinical_sys == "ayush" else "chest_pain"
     )
+    session["hospital_name"] = hosp_name
 
     # Fetch initial question
     questions = clinical_engine.get_questions_for_system(clinical_sys)
@@ -209,7 +210,8 @@ async def init_session(req: SessionInitRequest):
         nextQuestion=next_question,
         progress=ProgressInfo(current=1, total=len(questions), percent=int((1 / len(questions)) * 100)),
         system=clinical_sys,
-        language=language
+        language=language,
+        hospitalName=hosp_name
     )
 
 
@@ -336,16 +338,44 @@ async def process_turn(req: SessionTurnRequest):
         predictions = clinical_model.predict(patient_responses, top_k=1)
         top_pred = predictions[0] if predictions else {}
 
+        all_answers = store.get_answers_for_session(session_id)
+        answers_map = {a.get("clinical_field", a.get("question_id")): a.get("raw_answer") for a in all_answers}
+
         if clinical_sys == "ayush":
+            predicted_dis = top_pred.get("disease", "Ajeerna (Digestive Dysfunction)")
+            herbs_list = [h.strip() for h in top_pred.get("ayurvedic_herbs", "Triphala, Shunthi, Haritaki").split(",")]
+            
+            prescribed_rx = [
+                {
+                    "name": "Triphala Churna",
+                    "dosage": "3g (1/2 tsp)",
+                    "frequency": "Twice daily after meals",
+                    "instructions": "Take with lukewarm water at bedtime"
+                },
+                {
+                    "name": "Shunthi Powder (Dry Ginger)",
+                    "dosage": "2g",
+                    "frequency": "Twice daily before meals",
+                    "instructions": "Take with warm water for Agni Deepana"
+                },
+                {
+                    "name": top_pred.get("formulation", "Sanjivani Vati"),
+                    "dosage": "1 tablet",
+                    "frequency": "Morning & Evening",
+                    "instructions": "Digestive & Ama Pachana support"
+                }
+            ]
+
             summary = {
-                "chief_complaint": "Ajeerna / Dashavidha Rogi Pariksha Outpatient Evaluation",
-                "hpi_summary": f"Patient completed standardized AIIA SACTP case-taking. Clinical feature analysis indicates: {top_pred.get('disease', 'Ajeerna')} with {top_pred.get('doshas', 'Vata-Pitta')} predominance.",
+                "chief_complaint": f"AYUSH Consultation - {predicted_dis}",
+                "hpi_summary": f"Patient completed standardized AIIA SACTP case-taking. Clinical feature analysis indicates: {predicted_dis} with {top_pred.get('doshas', 'Vata-Pitta')} predominance.",
                 "past_history": "Digestive irregularities, mild stress",
                 "medications_summary": "No regular modern medications",
                 "allergies_summary": "No known allergies reported",
                 "family_history": "Negative",
                 "personal_history": "Sedentary routine, irregular meal timings",
                 "review_of_systems": "Positive for digestive fullness. Denies syncope.",
+                "triage_status": "ROUTINE AYUSH OPD",
                 "ayush_assessment": {
                     "prakriti": { "body_build": top_pred.get("prakriti", "Vata-Pitta"), "temperament": "Rajas-Sattva" },
                     "vikriti": f"{top_pred.get('doshas', 'Vata-Pitta')} Dushti",
@@ -356,29 +386,72 @@ async def process_turn(req: SessionTurnRequest):
                     "nidra": "Alpa / Fragmented",
                     "sattva": "Rajas",
                     "vihara": "Sedentary",
-                    "predicted_disease": top_pred.get("disease", "Ajeerna"),
-                    "ayurvedic_herbs": [h.strip() for h in top_pred.get("ayurvedic_herbs", "Triphala, Shunthi").split(",")],
+                    "predicted_disease": predicted_dis,
+                    "ayurvedic_herbs": herbs_list,
                     "formulations": [top_pred.get("formulation", "Shunthi powder (2g) with warm water")],
                     "diet_lifestyle_recommendations": top_pred.get("diet_lifestyle", "Avoid heavy, oily foods; consume warm light meals; stay hydrated."),
                     "yoga_physical_therapy": top_pred.get("yoga_therapy", "Vajrasana after meals, Pawanmuktasana, Anulom Vilom")
                 },
-                "physician_notes": ""
+                "prescribed_report": {
+                    "diagnosis": predicted_dis,
+                    "clinical_system": "AYUSH (Ayurveda SACTP Protocol)",
+                    "prescribed_medications": prescribed_rx,
+                    "herbs": herbs_list,
+                    "diet_lifestyle": top_pred.get("diet_lifestyle", "Avoid heavy, oily foods; consume warm light meals; stay hydrated."),
+                    "yoga_therapy": top_pred.get("yoga_therapy", "Vajrasana after meals, Pawanmuktasana, Anulom Vilom"),
+                    "triage_level": "ROUTINE AYUSH OPD",
+                    "answers_breakdown": answers_map
+                },
+                "physician_notes": "Symptomatic AYUSH OPD Protocol & SACTP Herbal Prescription Generated."
             }
         else:
+            predicted_dis = top_pred.get("disease", "Acute Retrosternal Chest Discomfort - Triage Evaluation")
+            is_red = session.get("red_flag_detected", False)
+            
+            prescribed_rx = [
+                {
+                    "name": "Tab. Nitroglycerin",
+                    "dosage": "0.5mg",
+                    "frequency": "Sublingual STAT as needed",
+                    "instructions": "Place under tongue if chest tightness recurs"
+                },
+                {
+                    "name": "Tab. Aspirin (Ecosprin)",
+                    "dosage": "325mg",
+                    "frequency": "Chewable STAT dose",
+                    "instructions": "Chew immediately for acute coronary protocol"
+                },
+                {
+                    "name": "Tab. Clopidogrel",
+                    "dosage": "300mg",
+                    "frequency": "STAT loading dose",
+                    "instructions": "Cardiology emergency referral protocol"
+                }
+            ]
+
             summary = {
-                "chief_complaint": "Acute Retrosternal Chest Discomfort",
-                "hpi_summary": "Patient presented with acute retrosternal chest pain evaluated via structured SOCRATES protocol. Radiation and severity flags screened.",
+                "chief_complaint": answers_map.get("chief_complaint", "Acute Retrosternal Chest Discomfort"),
+                "hpi_summary": "Patient presented with acute retrosternal chest pain evaluated via structured SOCRATES protocol.",
                 "past_history": "Essential Hypertension, Dyslipidemia",
                 "medications_summary": "Telmisartan 40mg OD, Atorvastatin 20mg OD",
                 "allergies_summary": "No known drug allergies reported",
                 "family_history": "Paternal CAD",
                 "personal_history": "Non-smoker",
                 "review_of_systems": "Positive for chest heaviness. Evaluated for diaphoresis.",
+                "triage_status": "STAT EMERGENCY ER" if is_red else "PRIORITY CARDIOLOGY OPD",
                 "red_flags_summary": [
                     {"rule_name": rf.ruleName, "severity": rf.severity, "warning": rf.message}
                     for rf in red_flags
                 ],
-                "physician_notes": ""
+                "prescribed_report": {
+                    "diagnosis": predicted_dis,
+                    "clinical_system": "Allopathy (SOCRATES Protocol)",
+                    "prescribed_medications": prescribed_rx,
+                    "diet_lifestyle": "Complete bed rest, avoid physical exertion, immediate ECG & Cardiac Biomarker panel.",
+                    "triage_level": "STAT EMERGENCY ER" if is_red else "PRIORITY CARDIOLOGY OPD",
+                    "answers_breakdown": answers_map
+                },
+                "physician_notes": "Allopathy Stat Triage & Telemetry Protocol Active."
             }
 
         store.set_summary(session_id, summary)

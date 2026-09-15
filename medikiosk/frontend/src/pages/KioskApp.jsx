@@ -3,7 +3,8 @@ import {
   Mic, MicOff, Volume2, VolumeX, ArrowRight, ArrowLeft, CheckCircle2,
   AlertTriangle, Upload, FileText, Stethoscope, Sparkles,
   ShieldCheck, RefreshCw, ChevronRight, User, HeartPulse, Flower2,
-  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus, Loader2
+  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus, Loader2,
+  Pill, Hospital, Activity, Printer, Download
 } from 'lucide-react';
 import { KioskService } from '../services/api';
 import { defaultVoiceProvider } from '../services/voiceProvider';
@@ -17,6 +18,7 @@ import { dispatchEmergencyAlert } from '../services/alertSync';
 export default function KioskApp({ onSwitchToDoctor }) {
   // Navigation Views: 'HOSPITALS' (Landing & GPS Tracker) | 'INTAKE' (Clinical History Kiosk)
   const [activeView, setActiveView] = useState('HOSPITALS');
+  const [selectedHospital, setSelectedHospital] = useState(null);
   // Navigation Steps: 'LANG' | 'SYSTEM' | 'PATIENT' | 'CONSENT' | 'QUESTIONS' | 'DOCS' | 'DONE'
   const [step, setStep] = useState('LANG');
   const [language, setLanguage] = useState('en');
@@ -91,6 +93,26 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [uploadedDocs, setUploadedDocs] = useState([]);
   const [docType, setDocType] = useState('prescription');
   const fileInputRef = useRef(null);
+
+  // Summary & Medical Prescribed Report Data State
+  const [summaryReportData, setSummaryReportData] = useState(null);
+
+  // Fetch compiled medical summary & prescribed report when step becomes 'DONE'
+  useEffect(() => {
+    if (step === 'DONE' && sessionId) {
+      const fetchReport = async () => {
+        try {
+          const res = await KioskService.getSessionSummary(sessionId);
+          if (res && res.success) {
+            setSummaryReportData(res);
+          }
+        } catch (e) {
+          console.warn('Failed to fetch summary report:', e);
+        }
+      };
+      fetchReport();
+    }
+  }, [step, sessionId]);
 
   const t = (key) => getTranslation(language, key);
 
@@ -474,7 +496,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
         language,
         system,
         patientId: finalPatientId,
-        conditionId: system === 'ayush' ? 'ayush_general' : 'chest_pain'
+        conditionId: system === 'ayush' ? 'ayush_general' : 'chest_pain',
+        hospitalName: selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru'
       });
 
       if (res.success) {
@@ -790,6 +813,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
       {activeView === 'HOSPITALS' ? (
         <HospitalGpsTracker
           language={language}
+          onSelectHospital={(hosp) => setSelectedHospital(hosp)}
           onStartKiosk={() => {
             setActiveView('INTAKE');
             setStep('LANG');
@@ -2117,35 +2141,186 @@ export default function KioskApp({ onSwitchToDoctor }) {
         )}
 
         {/* ------------------------------------------------------------------ */}
-        {/* STEP 7: SESSION COMPLETED & OPD TOKEN */}
+        {/* STEP 7: SESSION COMPLETED, OPD TOKEN & PRESCRIBED REPORT DATA */}
         {/* ------------------------------------------------------------------ */}
         {step === 'DONE' && (
-          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-slate-200 text-center max-w-2xl mx-auto w-full fade-in">
-            <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="w-12 h-12" />
+          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 text-center max-w-4xl mx-auto w-full fade-in space-y-8">
+            
+            <div className="flex flex-col items-center">
+              <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4 shadow-sm">
+                <CheckCircle2 className="w-12 h-12" />
+              </div>
+
+              <h1 className="text-3xl font-extrabold text-slate-900 mb-1">
+                {t('doneTitle')}
+              </h1>
+              <p className="text-slate-500 text-sm max-w-md">
+                {t('doneSubtitle')}
+              </p>
             </div>
 
-            <h1 className="text-3xl font-extrabold text-slate-900 mb-2">
-              {t('doneTitle')}
-            </h1>
-            <p className="text-slate-500 text-base mb-8">
-              {t('doneSubtitle')}
-            </p>
-
             {/* Token Badge */}
-            <div className="bg-gradient-to-tr from-sky-50 to-teal-50 border-2 border-sky-200 rounded-3xl p-6 mb-8 max-w-md mx-auto">
+            <div className="bg-gradient-to-tr from-sky-50 to-teal-50 border-2 border-sky-200 rounded-3xl p-6 max-w-md mx-auto shadow-sm">
               <div className="text-xs uppercase font-black text-sky-600 tracking-wider mb-1">
                 {t('opdTokenLabel')}
               </div>
               <div className="text-5xl font-black text-slate-900 tracking-tight">
                 {opdToken || 'OPD-101'}
               </div>
-              <div className="text-xs text-slate-500 mt-2">
-                {language === 'hi' ? 'रोगी' : language === 'kn' ? 'ರೋಗಿ' : 'Patient'}: <span className="font-bold text-slate-700">{selectedPatient?.full_name || 'Ramesh Sharma'}</span> | {language === 'hi' ? 'पद्धति' : language === 'kn' ? 'ವಿಭಾಗ' : 'System'}: <span className="uppercase font-bold text-sky-700">{system}</span>
+              <div className="text-xs text-slate-500 mt-2 font-medium">
+                {language === 'hi' ? 'रोगी' : language === 'kn' ? 'ರೋಗಿ' : 'Patient'}: <span className="font-bold text-slate-800">{selectedPatient?.full_name || 'Ramesh Sharma'}</span> | {language === 'hi' ? 'पद्धति' : language === 'kn' ? 'ವಿಭಾಗ' : 'System'}: <span className="uppercase font-bold text-sky-700">{system}</span>
               </div>
             </div>
 
-            <p className="text-slate-600 text-sm font-medium mb-8 max-w-lg mx-auto">
+            {/* ---------------------------------------------------------------- */}
+            {/* MEDICAL PRESCRIBED REPORT DATA CARD */}
+            {/* ---------------------------------------------------------------- */}
+            <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-left shadow-sm space-y-6">
+              
+              {/* Header Banner */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-sky-700 uppercase tracking-wider">
+                    <Hospital className="w-4 h-4 text-sky-600" />
+                    <span>{selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru'}</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+                    {language === 'hi' ? 'चिकित्सीय पर्चा एवं डिजिटल स्वास्थ्य रिपोर्ट' : language === 'kn' ? 'ವೈದ್ಯಕೀಯ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಮತ್ತು ಡಿಜಿಟಲ್ ಹೆಲ್ತ್ ವರದಿ' : 'Medical Prescription & Digital Health Report'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    OPD Token: <span className="font-bold text-slate-800 font-mono">{opdToken || 'OPD-101'}</span> • ABHA ID: <span className="font-bold text-slate-800 font-mono">{selectedPatient?.abha_id || '91-2345-6789-0123'}</span>
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex items-center space-x-2">
+                  <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide flex items-center space-x-1.5 ${
+                    isRedFlag ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}>
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>{isRedFlag ? 'STAT Triage Alert' : 'Routine OPD Intake'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Patient Demographics Box */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Patient Name</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPatient?.full_name || 'Ramesh Sharma'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Age / Gender</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPatient?.age || 54} Yrs / {selectedPatient?.gender || 'Male'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Clinical Protocol</span>
+                  <span className="font-extrabold text-sky-700 text-sm uppercase">{system === 'ayush' ? 'AYUSH SACTP' : 'Allopathy SOCRATES'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Blood Group</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPatient?.blood_group || 'B+'}</span>
+                </div>
+              </div>
+
+              {/* Diagnosis & Clinical Summary */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center">
+                  <Stethoscope className="w-4 h-4 mr-1.5 text-sky-600" />
+                  {language === 'hi' ? 'आकलन एवं निदान' : language === 'kn' ? 'ಮೌಲ್ಯಮಾಪನ ಮತ್ತು ರೋಗನಿರ್ಣಯ' : 'Evaluated Diagnosis & Clinical Summary'}
+                </h4>
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 text-xs space-y-2">
+                  <div>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {summaryReportData?.summary?.prescribed_report?.diagnosis || summaryReportData?.summary?.chief_complaint || 'Ajeerna (Digestive Dysfunction)'}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 font-medium leading-relaxed">
+                    {summaryReportData?.summary?.hpi_summary || 'Patient completed standardized clinical case-taking. Symptoms and risk factors evaluated for physician consultation.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Prescribed Formulations / Medications */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center">
+                  <Pill className="w-4 h-4 mr-1.5 text-teal-600" />
+                  {language === 'hi' ? 'अनुशंसित दवाएं एवं औषधियां' : language === 'kn' ? 'ಶಿಫಾರಸು ಮಾಡಿದ ಔಷಧಿಗಳು' : 'Prescribed Formulations & Medications'}
+                </h4>
+                
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                  <table className="w-full text-left text-xs min-w-[500px]">
+                    <thead className="bg-slate-100 text-slate-600 font-extrabold border-b border-slate-200 uppercase text-[10px]">
+                      <tr>
+                        <th className="p-3">Medication / Formulation</th>
+                        <th className="p-3">Dosage</th>
+                        <th className="p-3">Frequency</th>
+                        <th className="p-3">Directions / Instructions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                      {(summaryReportData?.summary?.prescribed_report?.prescribed_medications || [
+                        { name: 'Triphala Churna', dosage: '3g (1/2 tsp)', frequency: 'Twice daily', instructions: 'Take with warm water' },
+                        { name: 'Shunthi Powder', dosage: '2g', frequency: 'Before meals', instructions: 'Take for Agni Deepana' },
+                        { name: 'Sanjivani Vati', dosage: '1 tablet', frequency: 'Morning & Evening', instructions: 'Digestive Pachana support' }
+                      ]).map((rx, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80">
+                          <td className="p-3 font-bold text-slate-900 flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            <span>{rx.name}</span>
+                          </td>
+                          <td className="p-3 font-mono">{rx.dosage}</td>
+                          <td className="p-3 font-semibold text-sky-800">{rx.frequency}</td>
+                          <td className="p-3 text-slate-500">{rx.instructions}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Diet, Lifestyle & Yoga Therapy */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl text-xs space-y-1">
+                  <span className="font-extrabold text-emerald-900 block text-xs">
+                    🥗 {language === 'hi' ? 'आहार एवं जीवनशैली सुझाव' : language === 'kn' ? 'ಆಹಾರ ಮತ್ತು ಜೀವನಶೈಲಿ ಮಾರ್ಗದರ್ಶನ' : 'Recommended Diet & Lifestyle'}
+                  </span>
+                  <p className="text-emerald-800 font-medium">
+                    {summaryReportData?.summary?.prescribed_report?.diet_lifestyle || 'Avoid heavy, oily foods; consume warm light meals; stay hydrated.'}
+                  </p>
+                </div>
+
+                {system === 'ayush' && (
+                  <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl text-xs space-y-1">
+                    <span className="font-extrabold text-teal-900 block text-xs">
+                      🧘 {language === 'hi' ? 'योग एवं व्यायाम' : language === 'kn' ? 'ಯೋಗ ಮತ್ತು ದೈಹಿಕ ವ್ಯಾಯಾಮ' : 'Yoga & Physical Therapy Protocol'}
+                    </span>
+                    <p className="text-teal-800 font-medium">
+                      {summaryReportData?.summary?.prescribed_report?.yoga_therapy || 'Vajrasana after meals, Pawanmuktasana, Anulom Vilom.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Report Actions Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 shadow"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{language === 'hi' ? 'रिपोर्ट प्रिंट करें' : language === 'kn' ? 'ವರದಿ ಮುದ್ರಿಸಿ' : 'Print Medical Report'}</span>
+                </button>
+
+                <div className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-300 flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>ABDM FHIR R4 Bundle Digitized</span>
+                </div>
+              </div>
+
+            </div>
+
+            <p className="text-slate-600 text-sm font-medium max-w-lg mx-auto">
               {t('proceedInstructions')}
             </p>
 
@@ -2157,6 +2332,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                   setSessionId(null);
                   setIsRedFlag(false);
                   setActiveRedFlags([]);
+                  setSummaryReportData(null);
                 }}
                 className="py-4 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition"
               >

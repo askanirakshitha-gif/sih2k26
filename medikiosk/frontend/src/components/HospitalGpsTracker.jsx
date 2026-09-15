@@ -2,161 +2,81 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin, Navigation, Phone, ShieldCheck, Activity, Search,
   Bed, HeartPulse, Clock, ChevronRight, Compass, AlertCircle,
-  ExternalLink, Sparkles, Building2, CheckCircle, Award
+  ExternalLink, Sparkles, Building2, CheckCircle, Award, Globe
 } from 'lucide-react';
 import { getTranslation } from '../services/i18n';
 
-// 10 Premier Indian Hospitals & OPD Smart Hubs with GPS Coordinates
-const HOSPITALS_DATA = [
+// Premier Bengaluru & Top Indian Hospitals with GPS Coordinates
+const BENGALURU_HOSPITALS_DATA = [
   {
-    id: 'hosp_aiims_delhi',
-    name: 'AIIMS New Delhi (All India Institute of Medical Sciences)',
-    city: 'New Delhi',
-    address: 'Sri Aurobindo Marg, Ansari Nagar, New Delhi 110029',
-    lat: 28.5672,
-    lng: 77.2100,
-    phone: '+91-11-26588500',
-    emergencyPhone: '102 / +91-11-26588700',
-    type: 'Multi-Specialty & Referral Apex Hospital',
-    erBeds: 18,
-    icuBeds: 6,
-    opdWaitTime: '12 min',
-    accreditation: 'NABH Accredited • ABDM M1/M2/M3 Standards',
-    features: ['24/7 Emergency ER', 'Trauma Center Level-1', 'AYUSH Integrative OPD', 'ABDM Health Locker']
-  },
-  {
-    id: 'hosp_apollo_blr',
-    name: 'Apollo Hospital Bengaluru',
+    id: 'hosp_manipal_hal_blr',
+    name: 'Manipal Hospital HAL Old Airport Road',
     city: 'Bengaluru',
-    address: '154/11, Bannerghatta Road, Opp IIM, Bengaluru 560076',
-    lat: 12.8954,
-    lng: 77.5986,
-    phone: '+91-80-26304050',
-    emergencyPhone: '1066 / +91-80-26304050',
-    type: 'Quaternary Super Speciality',
-    erBeds: 14,
-    icuBeds: 8,
-    opdWaitTime: '8 min',
-    accreditation: 'JCI & NABH Accredited • ABDM Certified',
-    features: ['24/7 Cardiac ER', 'Stroke Unit', 'Smart Kiosk OPD', 'Robotic Surgery']
-  },
-  {
-    id: 'hosp_fortis_delhi',
-    name: 'Fortis Escorts Heart Institute',
-    city: 'New Delhi',
-    address: 'Okhla Road, New Delhi 110025',
-    lat: 28.5606,
-    lng: 77.2764,
-    phone: '+91-11-47135000',
-    emergencyPhone: '+91-11-47134000',
-    type: 'Advanced Cardiac & Vascular Center',
-    erBeds: 10,
-    icuBeds: 5,
-    opdWaitTime: '10 min',
-    accreditation: 'NABH Accredited • ABDM Compliant',
-    features: ['Stat Cath Lab 24/7', 'Emergency Cardiac Triage', 'Smart OPD Intake']
-  },
-  {
-    id: 'hosp_manipal_blr',
-    name: 'Manipal Hospital HAL Airport Road',
-    city: 'Bengaluru',
-    address:98,
+    address: '98, HAL Old Airport Road, Kodihalli, Bengaluru, Karnataka 560017',
     lat: 12.9582,
     lng: 77.6493,
     phone: '+91-80-25024444',
     emergencyPhone: '105711 / +91-80-25024444',
-    type: 'Super Speciality Hospital',
-    erBeds: 16,
-    icuBeds: 7,
+    type: 'Quaternary Care & Apex Referral Hospital',
+    erBeds: 18,
+    icuBeds: 8,
     opdWaitTime: '6 min',
-    accreditation: 'NABH & NABL Accredited',
-    features: ['Level-1 Emergency', 'Integrated AYUSH Clinic', 'ABDM Digital Record Sync']
+    accreditation: 'NABH & NABL Accredited • ABDM M1/M2/M3',
+    features: ['24/7 Trauma ER', 'Integrated AYUSH Clinic', 'ABDM Health Locker Link', 'Robotic Surgery']
   },
   {
-    id: 'hosp_medanta_gurugram',
-    name: 'Medanta - The Medicity',
-    city: 'Gurugram / NCR',
-    address: 'CH Baktawar Singh Road, Sector 38, Gurugram 122001',
-    lat: 28.4385,
-    lng: 77.0427,
-    phone: '+91-124-4141414',
-    emergencyPhone: '1068 / +91-124-4141414',
-    type: 'Multi-Super Speciality Institute',
-    erBeds: 24,
-    icuBeds: 12,
-    opdWaitTime: '15 min',
+    id: 'hosp_apollo_bg_blr',
+    name: 'Apollo Hospital Bannerghatta Road',
+    city: 'Bengaluru',
+    address: '154/11, Bannerghatta Road, Opp IIMB, Bengaluru, Karnataka 560076',
+    lat: 12.8954,
+    lng: 77.5986,
+    phone: '+91-80-26304050',
+    emergencyPhone: '1066 / +91-80-26304050',
+    type: 'Multi-Specialty Super Center',
+    erBeds: 14,
+    icuBeds: 7,
+    opdWaitTime: '8 min',
     accreditation: 'JCI & NABH Accredited',
-    features: ['Air Ambulance', 'Comprehensive Cancer & Heart ER', 'Digital Kiosk Ecosystem']
+    features: ['24/7 Cardiac ER', 'Stroke Unit', 'Smart Kiosk Token System', 'Organ Transplant']
   },
   {
-    id: 'hosp_max_saket',
-    name: 'Max Super Speciality Hospital Saket',
-    city: 'New Delhi',
-    address: '1, 2 Press Enclave Marg, Saket, New Delhi 110017',
-    lat: 28.5284,
-    lng: 77.2115,
-    phone: '+91-11-26515050',
-    emergencyPhone: '+91-11-26515050',
-    type: 'Super Speciality Healthcare Center',
+    id: 'hosp_fortis_bg_blr',
+    name: 'Fortis Hospital Bannerghatta Road',
+    city: 'Bengaluru',
+    address:154,
+    lat: 12.8938,
+    lng: 77.5978,
+    phone: '+91-80-66214444',
+    emergencyPhone: '+91-80-66214444',
+    type: 'Super Speciality Medical Center',
     erBeds: 12,
-    icuBeds: 4,
+    icuBeds: 5,
     opdWaitTime: '9 min',
-    accreditation: 'NABH Accredited • ABDM M1/M2/M3',
-    features: ['Code FAST Stroke Unit', 'Smart Triage Kiosk', 'Emergency Cardiac Care']
+    accreditation: 'NABH & JCI Accredited',
+    features: ['Stat Cath Lab 24/7', 'Emergency Cardiac Triage', 'Smart OPD Intake']
   },
   {
-    id: 'hosp_pgimer_chd',
-    name: 'PGIMER Chandigarh',
-    city: 'Chandigarh',
-    address: 'Sector 12, Chandigarh 160012',
-    lat: 30.7628,
-    lng: 76.7766,
-    phone: '+91-172-2756565',
-    emergencyPhone: '+91-172-2747837',
-    type: 'Tertiary Care Apex Institute',
-    erBeds: 20,
-    icuBeds: 9,
-    opdWaitTime: '14 min',
-    accreditation: 'National Apex Accreditation',
-    features: ['Advanced Trauma Center', 'AYUSH Research OPD', 'ABDM Health Vault']
-  },
-  {
-    id: 'hosp_narayana_blr',
-    name: 'Narayana Health City',
+    id: 'hosp_narayana_hosur_blr',
+    name: 'Narayana Health City (NH)',
     city: 'Bengaluru',
     address: '258/A, Bommasandra Industrial Area, Hosur Road, Bengaluru 560099',
     lat: 12.8105,
     lng: 77.6953,
     phone: '+91-80-71222222',
     emergencyPhone: '105711',
-    type: 'Health City & Cardiac Center',
+    type: 'Health City & Cardiac Specialty Institute',
     erBeds: 30,
     icuBeds: 15,
     opdWaitTime: '7 min',
     accreditation: 'JCI & NABH Accredited',
-    features: ['24/7 Pediatric & Adult ER', 'Low-Cost Smart OPD', 'ABDM Integrated']
+    features: ['24/7 Adult & Child ER', 'Low-Cost Smart OPD', 'ABDM FHIR Integrated']
   },
   {
-    id: 'hosp_gangaram_delhi',
-    name: 'Sir Ganga Ram Hospital',
-    city: 'New Delhi',
-    address: 'Rajinder Nagar, New Delhi 110060',
-    lat: 28.6394,
-    lng: 77.1883,
-    phone: '+91-11-25750000',
-    emergencyPhone: '+91-11-42251000',
-    type: 'Multi-Specialty Premier Hospital',
-    erBeds: 11,
-    icuBeds: 3,
-    opdWaitTime: '11 min',
-    accreditation: 'NABH Accredited',
-    features: ['Emergency Care', 'AIIA Ayurvedic Integrative Wing', 'ABDM M2 Locker']
-  },
-  {
-    id: 'hosp_victoria_blr',
-    name: 'Victoria Hospital & Bangalore Medical College',
+    id: 'hosp_victoria_fort_blr',
+    name: 'Victoria Hospital & BMCRI',
     city: 'Bengaluru',
-    address: 'Fort Road, Near City Market, Bengaluru 560002',
+    address: 'Fort Road, Near City Market, Kalasipalya, Bengaluru 560002',
     lat: 12.9634,
     lng: 77.5750,
     phone: '+91-80-26701150',
@@ -167,6 +87,102 @@ const HOSPITALS_DATA = [
     opdWaitTime: '5 min',
     accreditation: 'NABH Govt Accredited',
     features: ['24/7 Govt ER', 'Integrated AYUSH SACTP Desk', 'Free Triage Services']
+  },
+  {
+    id: 'hosp_stjohns_koramangala_blr',
+    name: "St. John's Medical College Hospital",
+    city: 'Bengaluru',
+    address: 'Sarjapur Road, Koramangala, Bengaluru, Karnataka 560034',
+    lat: 12.9304,
+    lng: 77.6186,
+    phone: '+91-80-22065000',
+    emergencyPhone: '+91-80-22065250',
+    type: 'Charitable & Research Super Speciality',
+    erBeds: 20,
+    icuBeds: 9,
+    opdWaitTime: '10 min',
+    accreditation: 'NABH Accredited',
+    features: ['24/7 Emergency Care', 'Comprehensive Outpatient Center', 'Digital Records']
+  },
+  {
+    id: 'hosp_sakra_marathahalli_blr',
+    name: 'Sakra World Hospital',
+    city: 'Bengaluru',
+    address: 'SY NO 52/2 & 52/3, Devarabeesanahalli, Varthur Hobli, Marathahalli, Bengaluru 560103',
+    lat: 12.9279,
+    lng: 77.6841,
+    phone: '+91-80-49694969',
+    emergencyPhone: '+91-80-49694969',
+    type: 'Indo-Japanese Multi Speciality',
+    erBeds: 15,
+    icuBeds: 6,
+    opdWaitTime: '8 min',
+    accreditation: 'NABH Accredited',
+    features: ['Advanced Neuro Triage', 'Emergency ER', 'ABDM Health Locker Sync']
+  },
+  {
+    id: 'hosp_aster_cmi_hebbal_blr',
+    name: 'Aster CMI Hospital Hebbal',
+    city: 'Bengaluru',
+    address: '#43/2, New Airport Road, NH 44, Sahakar Nagar, Hebbal, Bengaluru 560092',
+    lat: 13.0560,
+    lng: 77.5925,
+    phone: '+91-80-43420100',
+    emergencyPhone: '+91-80-43420100',
+    type: 'Quaternary Super Speciality',
+    erBeds: 16,
+    icuBeds: 7,
+    opdWaitTime: '7 min',
+    accreditation: 'NABH & JCI Accredited',
+    features: ['Level-1 Emergency ER', 'Pediatric ICU', 'Smart OPD Kiosk']
+  },
+  {
+    id: 'hosp_columbia_yesh_blr',
+    name: 'Manipal Hospital (Columbia Asia) Yeshwanthpur',
+    city: 'Bengaluru',
+    address: '26/4, Brigade Gateway, Beside Metro, Malleshwaram-Yeshwanthpur, Bengaluru 560055',
+    lat: 13.0186,
+    lng: 77.5539,
+    phone: '+91-80-39898969',
+    emergencyPhone: '+91-80-39898969',
+    type: 'Super Speciality Hospital',
+    erBeds: 11,
+    icuBeds: 5,
+    opdWaitTime: '9 min',
+    accreditation: 'NABH Accredited',
+    features: ['Emergency Trauma Unit', 'Cardiology ER', 'ABDM Compliant']
+  },
+  {
+    id: 'hosp_bgs_kengeri_blr',
+    name: 'BGS Gleneagles Global Hospital Kengeri',
+    city: 'Bengaluru',
+    address: '67, Uttarahalli Road, Kengeri, Bengaluru, Karnataka 560060',
+    lat: 12.9056,
+    lng: 77.4912,
+    phone: '+91-80-26255555',
+    emergencyPhone: '+91-80-26255555',
+    type: 'Multi-Organ Transplant Institute',
+    erBeds: 14,
+    icuBeds: 6,
+    opdWaitTime: '11 min',
+    accreditation: 'NABH Accredited',
+    features: ['Organ Transplant Unit', '24/7 Trauma Care', 'Kiosk OPD Token']
+  },
+  {
+    id: 'hosp_aiims_delhi',
+    name: 'AIIMS New Delhi (All India Institute of Medical Sciences)',
+    city: 'New Delhi',
+    address: 'Sri Aurobindo Marg, Ansari Nagar, New Delhi 110029',
+    lat: 28.5672,
+    lng: 77.2100,
+    phone: '+91-11-26588500',
+    emergencyPhone: '102 / +91-11-26588700',
+    type: 'Apex National Referral Center',
+    erBeds: 22,
+    icuBeds: 10,
+    opdWaitTime: '15 min',
+    accreditation: 'Apex Govt Accredited • ABDM M1/M2/M3',
+    features: ['Level-1 Trauma Center', 'AYUSH Integrative Center', 'ABDM Health Vault']
   }
 ];
 
@@ -186,12 +202,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 export default function HospitalGpsTracker({ language = 'en', onSelectHospital, onStartKiosk }) {
-  // User GPS Coordinates State (Default: New Delhi AIIMS area)
-  const [userLocation, setUserLocation] = useState({ lat: 28.5672, lng: 77.2100 });
+  // User GPS Coordinates State (Default: Bengaluru City Center)
+  const [userLocation, setUserLocation] = useState({ lat: 12.9716, lng: 77.5946 });
   const [isLocating, setIsLocating] = useState(false);
-  const [locationStatus, setLocationStatus] = useState('Default GPS Active');
+  const [locationStatus, setLocationStatus] = useState('Bengaluru GPS Active');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('ALL'); // 'ALL' | 'ER' | 'AYUSH' | 'BEDS'
+  const [selectedFilter, setSelectedFilter] = useState('ALL'); // 'ALL' | 'BLR' | 'ER' | 'AYUSH'
 
   // Request browser live GPS location on mount
   useEffect(() => {
@@ -200,7 +216,7 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
 
   const fetchUserLocation = () => {
     if (!navigator.geolocation) {
-      setLocationStatus('Geolocation not supported by browser. Using default GPS.');
+      setLocationStatus('Geolocation not supported by browser. Showing Bengaluru hubs.');
       return;
     }
 
@@ -219,19 +235,19 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
       (err) => {
         console.warn('GPS location error:', err);
         setIsLocating(false);
-        setLocationStatus('GPS Access Denied. Showing default premier hospital hubs.');
+        setLocationStatus('GPS Access Denied. Defaulting to Bengaluru Hospital Region.');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
   // Sort hospitals by distance from current user GPS location
-  const sortedHospitals = HOSPITALS_DATA.map(h => ({
+  const sortedHospitals = BENGALURU_HOSPITALS_DATA.map(h => ({
     ...h,
     distanceKm: calculateDistance(userLocation.lat, userLocation.lng, h.lat, h.lng)
   })).sort((a, b) => a.distanceKm - b.distanceKm);
 
-  // Filter hospitals by search query and type filter
+  // Filter hospitals by search query and category filter
   const filteredHospitals = sortedHospitals.filter(h => {
     const matchesSearch =
       h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -240,15 +256,20 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
 
     if (!matchesSearch) return false;
 
+    if (selectedFilter === 'BLR') return h.city.toLowerCase().includes('bengaluru');
     if (selectedFilter === 'ER') return h.features.some(f => f.includes('ER') || f.includes('Emergency'));
     if (selectedFilter === 'AYUSH') return h.features.some(f => f.includes('AYUSH') || f.includes('Ayurvedic'));
-    if (selectedFilter === 'BEDS') return h.erBeds > 12;
 
     return true;
   });
 
   const openGoogleMapsDirections = (lat, lng, name) => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(name)}`;
+    window.open(url, '_blank');
+  };
+
+  const openGoogleMapsGeneralSearch = (query) => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
     window.open(url, '_blank');
   };
 
@@ -284,7 +305,10 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
           {/* Patient Login / Start Button */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
             <button
-              onClick={onStartKiosk}
+              onClick={() => {
+                if (onSelectHospital) onSelectHospital(sortedHospitals[0]);
+                if (onStartKiosk) onStartKiosk();
+              }}
               className="w-full sm:w-auto px-8 py-4 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-extrabold text-lg rounded-2xl shadow-xl shadow-teal-900/40 transition-all transform hover:-translate-y-0.5 flex items-center justify-center space-x-3 border border-teal-400/40"
             >
               <span>{language === 'hi' ? 'मरीज लॉगिन / ओपीडी टोकन' : language === 'kn' ? 'ರೋಗಿ ಲಾಗಿನ್ / ಒಪಿಡಿ ಟೋಕನ್' : 'Patient Login ->'}</span>
@@ -331,24 +355,24 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
       </section>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 3. REAL-TIME GPS TRACKER & HOSPITALS NEAR ME */}
+      {/* 3. REAL-TIME GPS TRACKER & BENGALURU / NEARBY HOSPITALS */}
       {/* -------------------------------------------------------------------- */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
 
         {/* GPS Control Bar */}
-        <div className="bg-gradient-to-r from-sky-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-2xl mb-10 border border-sky-700/50">
+        <div className="bg-gradient-to-r from-sky-900 via-slate-900 to-sky-950 text-white rounded-3xl p-6 sm:p-8 shadow-2xl mb-10 border border-sky-700/50">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
 
             <div>
               <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
                 <Compass className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
-                <span>REAL-TIME GPS LOCATOR & ER TRACKER</span>
+                <span>REAL-TIME GPS LOCATOR & GOOGLE MAPS INTEGRATION</span>
               </div>
               <h3 className="text-2xl sm:text-3xl font-black text-white">
-                Hospitals Near Me & OPD Smart Facilities
+                Hospitals Near Me (Bengaluru Region & Live GPS)
               </h3>
               <p className="text-sky-200 text-xs sm:text-sm mt-1 font-medium">
-                Live GPS distance calculation, ER bed availability, emergency contacts, and one-tap OPD kiosk registration.
+                Live GPS distance calculation, Google Maps address lookup, ER beds, and one-tap OPD kiosk token booking.
               </p>
             </div>
 
@@ -360,7 +384,7 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
                 className="px-5 py-3 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 disabled:opacity-50 text-white font-bold text-sm rounded-2xl transition shadow-lg flex items-center space-x-2 border border-sky-300/40"
               >
                 <Navigation className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
-                <span>{isLocating ? 'Acquiring GPS...' : 'Refresh Live GPS Location'}</span>
+                <span>{isLocating ? 'Acquiring Live GPS...' : 'Refresh Live GPS Location'}</span>
               </button>
               <span className="text-[11px] font-mono text-sky-300/90 bg-sky-950/60 px-2.5 py-1 rounded-md border border-sky-800/60">
                 📍 {locationStatus}
@@ -379,7 +403,7 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by hospital name, city (e.g. Bengaluru, New Delhi), or address..."
+                placeholder="Search any hospital (e.g. Manipal Bengaluru, Nimhans, Cloudnine, Apollo)..."
                 className="w-full pl-11 pr-4 py-3 bg-slate-800/90 text-white placeholder-slate-400 text-sm font-medium rounded-2xl border border-slate-700 focus:ring-2 focus:ring-sky-400 outline-none"
               />
             </div>
@@ -387,10 +411,10 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
             {/* Filter Tabs */}
             <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 rounded-2xl border border-slate-700 overflow-x-auto">
               {[
-                { id: 'ALL', label: 'All 10 Premier Hospitals' },
+                { id: 'ALL', label: 'All Hospitals' },
+                { id: 'BLR', label: 'Bengaluru Hubs' },
                 { id: 'ER', label: '24/7 ER' },
-                { id: 'AYUSH', label: 'AYUSH OPD' },
-                { id: 'BEDS', label: 'High ER Beds' }
+                { id: 'AYUSH', label: 'AYUSH OPD' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -409,10 +433,55 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
           </div>
         </div>
 
+        {/* GOOGLE MAPS DYNAMIC SEARCH BANNER FOR ANY ENTERED HOSPITAL */}
+        {searchQuery.trim() && (
+          <div className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white rounded-3xl p-6 mb-8 border-2 border-emerald-400/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2 text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                <Globe className="w-4 h-4 text-emerald-400" />
+                <span>Google Maps Registered Hospital Search</span>
+              </div>
+              <h4 className="text-xl font-black text-white">
+                Search "{searchQuery}" on Google Maps GPS
+              </h4>
+              <p className="text-xs text-emerald-100 font-medium">
+                Lookup live registered Google Maps location, real-time address, reviews, and start Kiosk intake.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 flex-wrap">
+              <button
+                onClick={() => openGoogleMapsGeneralSearch(searchQuery)}
+                className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs rounded-xl transition flex items-center space-x-2 shadow"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Open Address on Google Maps</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const customHosp = {
+                    id: 'custom_' + Date.now(),
+                    name: searchQuery,
+                    address: `Searched via Google Maps Location for "${searchQuery}"`,
+                    city: 'Bengaluru / Local Region'
+                  };
+                  if (onSelectHospital) onSelectHospital(customHosp);
+                  if (onStartKiosk) onStartKiosk();
+                }}
+                className="px-4 py-2.5 bg-white text-emerald-950 font-extrabold text-xs rounded-xl hover:bg-emerald-50 transition flex items-center space-x-1"
+              >
+                <span>Start Intake for "{searchQuery}"</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Hospital Cards List */}
         <div className="space-y-6">
           <div className="flex items-center justify-between text-xs font-extrabold text-slate-500 px-1">
-            <span>SHOWING {filteredHospitals.length} TOP HOSPITALS SORTED BY REAL-TIME GPS DISTANCE</span>
+            <span>SHOWING {filteredHospitals.length} HOSPITALS SORTED BY REAL-TIME GPS DISTANCE</span>
             <span>LIVE ER STATUS & KIOSK COMPATIBLE</span>
           </div>
 
@@ -492,7 +561,7 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
                   className="px-5 py-3 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-sm rounded-2xl transition flex items-center justify-center space-x-2 shadow-md"
                 >
                   <Navigation className="w-4 h-4" />
-                  <span>Navigate with GPS</span>
+                  <span>Navigate via Google Maps</span>
                 </button>
 
                 {/* Emergency Call Button */}
@@ -510,9 +579,9 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
                     if (onSelectHospital) onSelectHospital(hosp);
                     if (onStartKiosk) onStartKiosk();
                   }}
-                  className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm rounded-2xl transition flex items-center justify-center space-x-2"
+                  className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white font-black text-sm rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-teal-900/20"
                 >
-                  <span>Book OPD Kiosk Token</span>
+                  <span>Start Kiosk Intake</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
