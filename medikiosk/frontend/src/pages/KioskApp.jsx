@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Mic, MicOff, Volume2, ArrowRight, ArrowLeft, CheckCircle2,
+  Mic, MicOff, Volume2, VolumeX, ArrowRight, ArrowLeft, CheckCircle2,
   AlertTriangle, Upload, FileText, Stethoscope, Sparkles,
   ShieldCheck, RefreshCw, ChevronRight, User, HeartPulse, Flower2,
-  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus
+  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus, Loader2
 } from 'lucide-react';
 import { KioskService } from '../services/api';
 import { defaultVoiceProvider } from '../services/voiceProvider';
@@ -46,7 +46,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [phoneInput, setPhoneInput] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('4826');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpMaskedPhone, setOtpMaskedPhone] = useState('');
+  const [otpGateway, setOtpGateway] = useState('');
+  const [otpDebugCode, setOtpDebugCode] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [otpResendCountdown, setOtpResendCountdown] = useState(30);
@@ -72,6 +75,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [micErrorMsg, setMicErrorMsg] = useState('');
 
   // Red Flag Alert State
   const [isRedFlag, setIsRedFlag] = useState(false);
@@ -86,6 +90,89 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const fileInputRef = useRef(null);
 
   const t = (key) => getTranslation(language, key);
+
+  // Page Audio Read-Aloud State & Controls
+  const [isSpeakingPage, setIsSpeakingPage] = useState(false);
+
+  // Auto-trigger audio read-aloud when arriving at CONSENT step or changing language on CONSENT step
+  useEffect(() => {
+    defaultVoiceProvider.cancelSpeech();
+    setIsSpeakingPage(false);
+
+    if (step === 'CONSENT') {
+      const timer = setTimeout(() => {
+        const textToRead = getPageAuditableText('CONSENT');
+        if (textToRead) {
+          setIsSpeakingPage(true);
+          defaultVoiceProvider.speak(textToRead, {
+            language,
+            onEnd: () => setIsSpeakingPage(false),
+            onError: () => setIsSpeakingPage(false)
+          });
+        }
+      }, 300);
+      return () => {
+        clearTimeout(timer);
+        defaultVoiceProvider.cancelSpeech();
+      };
+    }
+  }, [step, language]);
+
+  const getPageAuditableText = (targetStep) => {
+    const lang = language;
+    if (targetStep === 'CONSENT') {
+      return `${getTranslation(lang, 'consentTitle')}. ${getTranslation(lang, 'consentSubtitle')}. Point 1: ${getTranslation(lang, 'consentText1')}. Point 2: ${getTranslation(lang, 'consentText2')}. Point 3: ${getTranslation(lang, 'consentText3')}. Agreement: ${getTranslation(lang, 'consentCheckbox')}`;
+    }
+    if (targetStep === 'LANG') {
+      return `${getTranslation(lang, 'selectLanguageTitle')}. ${getTranslation(lang, 'selectLanguageSubtitle')}`;
+    }
+    if (targetStep === 'SYSTEM') {
+      return `${getTranslation(lang, 'selectSystemTitle')}. ${getTranslation(lang, 'selectSystemSubtitle')}. ${getTranslation(lang, 'allopathyTitle')}: ${getTranslation(lang, 'allopathyDesc')}. ${getTranslation(lang, 'ayushTitle')}: ${getTranslation(lang, 'ayushDesc')}`;
+    }
+    if (targetStep === 'PATIENT') {
+      return lang === 'hi'
+        ? "मरीज पहचान। आभा आईडी खोजें, या मोबाइल नंबर पर एसएमएस ओटीपी प्राप्त करके सत्यापित करें।"
+        : lang === 'kn'
+        ? "ರೋಗಿಯ ಗುರುತು. ABHA ID ಯನ್ನು ಹುಡುಕಿ ಅಥವಾ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಗೆ SMS OTP ಪಡೆಯುವ ಮೂಲಕ ಪರಿಶೀಲಿಸಿ."
+        : "Patient Identification screen. Search ABHA ID record or request SMS OTP verification to link mobile number.";
+    }
+    if (targetStep === 'QUESTIONS' && currentQuestion) {
+      return currentQuestion.text;
+    }
+    if (targetStep === 'DOCS') {
+      return lang === 'hi'
+        ? "चिकित्सा दस्तावेज अपलोड करें। पर्ची या जांच रिपोर्ट स्कैन या अपलोड करें।"
+        : lang === 'kn'
+        ? "ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅಥವಾ ಲ್ಯಾಬ್ ವರದಿಯನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ."
+        : "Medical Document Upload. Upload past prescriptions or lab test reports.";
+    }
+    if (targetStep === 'DONE') {
+      return lang === 'hi'
+        ? "आपकी ओपीडी परामर्श प्रक्रिया पूर्ण हो चुकी है। आपका डिजिटल केस समरी तैयार है।"
+        : lang === 'kn'
+        ? "ನಿಮ್ಮ ಒಪಿಡಿ ಸಮಾಲೋಚನೆ ಪ್ರಕ್ರಿಯೆ ಪೂರ್ಣಗೊಂಡಿದೆ. ನಿಮ್ಮ ಡಿಜಿಟಲ್ ಕೇಸ್ ಸಾರಾಂಶ ಸಿದ್ಧವಾಗಿದೆ."
+        : "Your OPD consultation entry process is complete. Your digital intake summary is ready for the physician.";
+    }
+    return "";
+  };
+
+  const handleReadPageAloud = (customText) => {
+    if (isSpeakingPage) {
+      defaultVoiceProvider.cancelSpeech();
+      setIsSpeakingPage(false);
+      return;
+    }
+
+    const textToRead = customText || getPageAuditableText(step);
+    if (!textToRead) return;
+
+    setIsSpeakingPage(true);
+    defaultVoiceProvider.speak(textToRead, {
+      language,
+      onEnd: () => setIsSpeakingPage(false),
+      onError: () => setIsSpeakingPage(false)
+    });
+  };
 
   // Check speech recognition support on mount
   useEffect(() => {
@@ -192,7 +279,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   };
 
   // Handle Send OTP
-  const handleSendOtp = (customPhone) => {
+  const handleSendOtp = async (customPhone) => {
     const raw = (customPhone !== undefined ? customPhone : phoneInput).trim();
     const digits = raw.replace(/\D/g, '');
     if (digits.length < 10) {
@@ -207,16 +294,34 @@ export default function KioskApp({ onSwitchToDoctor }) {
     }
     setOtpError('');
     setRegValidationError('');
-    const newCode = '4826'; // fixed test code
-    setGeneratedOtp(newCode);
-    setOtpSent(true);
-    setOtpVerified(false);
-    setOtpInput('');
-    setOtpResendCountdown(30);
+    setOtpLoading(true);
+
+    try {
+      const res = await KioskService.sendOtp(raw);
+      if (res && res.success) {
+        setOtpSent(true);
+        setOtpVerified(false);
+        setOtpInput('');
+        setOtpMaskedPhone(res.phone_masked || '');
+        setOtpGateway(res.gateway || '');
+        if (res.otp) {
+          setOtpDebugCode(res.otp);
+        } else {
+          setOtpDebugCode('');
+        }
+        setOtpResendCountdown(30);
+      } else {
+        setOtpError(res?.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (err) {
+      setOtpError(err?.message || 'Failed to send OTP. Please check connection.');
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   // Handle Verify OTP
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     const trimmed = otpInput.trim();
     if (!trimmed) {
       setOtpError(
@@ -229,39 +334,51 @@ export default function KioskApp({ onSwitchToDoctor }) {
       return;
     }
 
-    if (trimmed === generatedOtp || trimmed === '1234' || trimmed === '4826') {
-      setOtpVerified(true);
-      setOtpError('');
-      setRegValidationError('');
+    setOtpLoading(true);
+    setOtpError('');
 
-      // Check if phone matches an existing registered patient
-      const cleanPhone = phoneInput.replace(/\D/g, '');
-      const matched = patients.find(p => p.phone && p.phone.replace(/\D/g, '').includes(cleanPhone));
-      if (matched) {
-        setSelectedPatient(matched);
-        setNewPatientForm({
-          full_name: matched.full_name,
-          age: matched.age,
-          gender: matched.gender,
-          phone: matched.phone || phoneInput,
-          blood_group: matched.blood_group || 'B+',
-          abha_id: matched.abha_id || '',
-          emergency_contact: matched.emergency_contact || ''
-        });
+    try {
+      const res = await KioskService.verifyOtp(phoneInput, trimmed);
+      if (res && (res.success || res.verified)) {
+        setOtpVerified(true);
+        setOtpError('');
+        setRegValidationError('');
+
+        // Check if phone matches an existing registered patient
+        const cleanPhone = phoneInput.replace(/\D/g, '');
+        const matched = patients.find(p => p.phone && p.phone.replace(/\D/g, '').includes(cleanPhone));
+        if (matched) {
+          setSelectedPatient(matched);
+          setNewPatientForm({
+            full_name: matched.full_name,
+            age: matched.age,
+            gender: matched.gender,
+            phone: matched.phone || phoneInput,
+            blood_group: matched.blood_group || 'B+',
+            abha_id: matched.abha_id || '',
+            emergency_contact: matched.emergency_contact || ''
+          });
+        } else {
+          setNewPatientForm(prev => ({
+            ...prev,
+            phone: phoneInput.startsWith('+91') ? phoneInput : `+91 ${phoneInput}`
+          }));
+        }
       } else {
-        setNewPatientForm(prev => ({
-          ...prev,
-          phone: phoneInput.startsWith('+91') ? phoneInput : `+91 ${phoneInput}`
-        }));
+        setOtpError(
+          res?.message || (
+            language === 'hi'
+              ? 'अमान्य ओटीपी कोड। कृपया एसएमएस में दिए गए 4 अंक फिर से दर्ज करें।'
+              : language === 'kn'
+              ? 'ಅಮಾನ್ಯ OTP ಕೋಡ್. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಕೋಡ್ ನಮೂದಿಸಿ.'
+              : 'Invalid OTP code. Please check the code received on your phone.'
+          )
+        );
       }
-    } else {
-      setOtpError(
-        language === 'hi'
-          ? 'अमान्य ओटीपी कोड। कृपया एसएमएस में दिए गए 4 अंक फिर से दर्ज करें।'
-          : language === 'kn'
-          ? 'ಅಮಾನ್ಯ OTP ಕೋಡ್. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಕೋಡ್ ನಮೂದಿಸಿ.'
-          : 'Invalid OTP code. Please enter the demo code shown in SMS banner.'
-      );
+    } catch (err) {
+      setOtpError(err?.message || 'OTP verification failed. Please try again.');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -365,9 +482,11 @@ export default function KioskApp({ onSwitchToDoctor }) {
         setStep('QUESTIONS');
         resetInputState();
 
-        // Optional read aloud of the first question
         if (res.nextQuestion) {
-          defaultVoiceProvider.speak(res.nextQuestion.text, { language });
+          const firstQText = res.nextQuestion.text || res.nextQuestion.questionText || '';
+          if (firstQText) {
+            defaultVoiceProvider.speak(firstQText, { language });
+          }
         }
       }
     } catch (err) {
@@ -395,27 +514,79 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setVoiceTranscript(text);
           setTextInput(text);
 
-          // Auto match options if user spoke option text
-          if (currentQuestion && currentQuestion.options) {
-            const lower = text.toLowerCase();
-            const matched = currentQuestion.options.find(opt => 
-              lower.includes(opt.text.toLowerCase()) || lower.includes(opt.value.toLowerCase())
-            );
+          if (!text.trim()) return;
+
+          // Enhanced Multilingual Matching (EN, HI, KN)
+          if (currentQuestion && currentQuestion.options && currentQuestion.options.length > 0) {
+            const lower = text.toLowerCase().trim();
+            const words = lower.split(/\s+/);
+
+            // Multilingual Spoken Number mapping (1-5)
+            const numMap = {
+              "1": 0, "one": 0, "first": 0, "एक": 0, "पहला": 0, "प्रथमा": 0, "ಒಂದು": 0, "ಮೊದಲ": 0,
+              "2": 1, "two": 1, "second": 1, "दो": 1, "दूसरा": 1, "द्वितीया": 1, "ಎರಡು": 1, "ಎರಡನೇ": 1,
+              "3": 2, "three": 2, "third": 2, "तीन": 2, "तीसरा": 2, "तृतीया": 2, "ಮೂರು": 2, "ಮೂರನೇ": 2,
+              "4": 3, "four": 3, "fourth": 3, "चार": 3, "चौथा": 3, "ನಾಲ್ಕು": 3, "ನಾಲ್ಕನೇ": 3,
+              "5": 4, "five": 4, "fifth": 4, "पांच": 4, "पाँच": 4, "पांचवां": 4, "ಐದು": 4, "ಐದನೇ": 4
+            };
+
+            let matchedIdx = -1;
+            for (const w of words) {
+              if (numMap[w] !== undefined && numMap[w] < currentQuestion.options.length) {
+                matchedIdx = numMap[w];
+                break;
+              }
+            }
+
+            if (matchedIdx !== -1) {
+              const opt = currentQuestion.options[matchedIdx];
+              setSelectedOption(opt.value);
+              if (isFinal) {
+                handleAutoSubmit(opt.value);
+              }
+              return;
+            }
+
+            // Text/value match across English, Hindi, Kannada
+            const matched = currentQuestion.options.find(opt => {
+              const valLower = (opt.value || '').toLowerCase();
+              const textLower = (opt.text || '').toLowerCase();
+              return lower.includes(valLower) || (textLower && lower.includes(textLower));
+            });
+
             if (matched) {
               setSelectedOption(matched.value);
-              handleAutoSubmit(matched.value);
+              if (isFinal) {
+                handleAutoSubmit(matched.value);
+              }
+            } else if (isFinal) {
+              // Send spoken transcript to backend for noise cancellation & acoustic option matching
+              handleSubmitAnswer(text.trim());
             }
-          } else if (currentQuestion && currentQuestion.type === 'yes_no') {
+          } else if (currentQuestion && (currentQuestion.type === 'yes_no' || currentQuestion.questionType === 'yes_no')) {
             const lower = text.toLowerCase();
-            if (lower.includes('yes') || lower.includes('हाँ') || lower.includes('ಹೌದು')) {
-              handleAutoSubmit('yes');
-            } else if (lower.includes('no') || lower.includes('नहीं') || lower.includes('ಇಲ್ಲ')) {
-              handleAutoSubmit('no');
+            const isYes = lower.includes('yes') || lower.includes('हाँ') || lower.includes('हां') || lower.includes('हೌದು') || lower.includes('ಹೌದು');
+            const isNo = lower.includes('no') || lower.includes('नहीं') || lower.includes('ना') || lower.includes('ಇಲ್ಲ');
+
+            if (isYes) {
+              setSelectedOption('yes');
+              if (isFinal) handleAutoSubmit('yes');
+            } else if (isNo) {
+              setSelectedOption('no');
+              if (isFinal) handleAutoSubmit('no');
+            } else if (isFinal) {
+              handleSubmitAnswer(text.trim());
             }
+          } else if (isFinal) {
+            handleSubmitAnswer(text.trim());
           }
         },
         onError: (err) => {
-          console.warn('Speech recognition error:', err);
+          console.warn('[Microphone/Speech Stream]', err);
+          // Keep listening status active unless explicitly stopped by patient
+          if (err?.error === 'no-speech' || err?.error === 'aborted') {
+            return;
+          }
           setIsListening(false);
         },
         onEnd: () => {
@@ -427,7 +598,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
   const handleReplayAudio = () => {
     if (currentQuestion) {
-      defaultVoiceProvider.speak(currentQuestion.text, { language });
+      const qText = currentQuestion.text || currentQuestion.questionText || '';
+      if (qText) {
+        defaultVoiceProvider.speak(qText, { language });
+      }
     }
   };
 
@@ -437,6 +611,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
     setTextInput('');
     setNumberInput(5);
     setVoiceTranscript('');
+    setMicErrorMsg('');
     defaultVoiceProvider.stopListening();
     setIsListening(false);
   };
@@ -565,6 +740,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
         onLanguageChange={(newLang) => setLanguage(newLang)}
         opdToken={opdToken}
         isRedFlag={isRedFlag}
+        isSpeakingPage={isSpeakingPage}
+        onReadPageAloud={handleReadPageAloud}
       />
 
       {/* Red Flag Emergency Alert Modal */}
@@ -1124,7 +1301,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                             setPhoneInput(e.target.value);
                             setOtpError('');
                           }}
-                          placeholder="e.g. 9876543210"
+                          placeholder="Enter 10-digit mobile number"
                           className="w-full p-3 rounded-xl border border-slate-300 font-mono text-sm tracking-wide focus:ring-2 focus:ring-sky-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-500"
                         />
                       </div>
@@ -1132,9 +1309,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
                         <button
                           type="button"
                           onClick={() => handleSendOtp()}
-                          className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm"
+                          disabled={otpLoading}
+                          className="px-6 py-3 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm"
                         >
-                          <Smartphone className="w-4 h-4" />
+                          {otpLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Smartphone className="w-4 h-4" />
+                          )}
                           <span>{otpSent ? 'Resend OTP' : 'Send OTP'}</span>
                         </button>
                       ) : (
@@ -1145,76 +1327,62 @@ export default function KioskApp({ onSwitchToDoctor }) {
                       )}
                     </div>
 
-                    {/* Quick demo sample numbers */}
-                    {!otpVerified && (
-                      <div className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="font-semibold text-slate-600">Quick Samples:</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPhoneInput('+91 9876543210');
-                            handleSendOtp('+91 9876543210');
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
-                        >
-                          9876543210 (Ramesh)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPhoneInput('+91 9812345678');
-                            handleSendOtp('+91 9812345678');
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
-                        >
-                          9812345678 (Sunita)
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Simulated SMS banner when OTP is sent */}
+                    {/* SMS Banner when OTP is sent */}
                     {otpSent && !otpVerified && (
-                      <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl space-y-3">
-                        <div className="flex items-center justify-between text-xs text-amber-900 font-semibold">
+                      <div className="p-4 bg-sky-50 border border-sky-300 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between text-xs text-sky-900 font-semibold">
                           <span className="flex items-center">
-                            <KeyRound className="w-4 h-4 mr-1.5 text-amber-700" />
-                            SMS Notification Simulation (Demo)
+                            <KeyRound className="w-4 h-4 mr-1.5 text-sky-700" />
+                            SMS Dispatched via {otpGateway || 'SMS Gateway'}
                           </span>
-                          <span className="font-mono bg-amber-200/80 px-2 py-0.5 rounded text-amber-900 font-bold">
-                            Demo Code: {generatedOtp}
-                          </span>
+                          {otpMaskedPhone && (
+                            <span className="font-mono bg-sky-200/80 px-2 py-0.5 rounded text-sky-900 font-bold">
+                              To: {otpMaskedPhone}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-amber-800">
-                          "Your MediKiosk security OTP for mobile registration is <strong>{generatedOtp}</strong>. Valid for 10 minutes."
+                        <p className="text-xs text-sky-800">
+                          {otpDebugCode ? (
+                            <>Offline Kiosk Simulator Code: <strong className="font-mono bg-amber-200 px-1.5 py-0.5 rounded">{otpDebugCode}</strong> (Sent to {otpMaskedPhone})</>
+                          ) : (
+                            <>Security OTP dispatched to <strong>{otpMaskedPhone || 'your mobile device'}</strong>. Please enter the 4-digit code below.</>
+                          )}
                         </p>
 
                         {/* OTP Entry Box */}
-                        <div className="flex items-center gap-2 pt-1">
+                        <div className="flex items-center gap-2 pt-1 flex-wrap">
                           <input
                             type="text"
                             maxLength={6}
                             value={otpInput}
                             onChange={(e) => setOtpInput(e.target.value)}
                             placeholder="Enter OTP"
-                            className="w-36 p-2.5 rounded-xl border border-amber-400 bg-white font-mono text-center font-extrabold tracking-widest text-base focus:ring-2 focus:ring-amber-500 outline-none"
+                            className="w-36 p-2.5 rounded-xl border border-sky-400 bg-white font-mono text-center font-extrabold tracking-widest text-base focus:ring-2 focus:ring-sky-500 outline-none"
                           />
                           <button
                             type="button"
                             onClick={handleVerifyOtp}
-                            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+                            disabled={otpLoading}
+                            className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center space-x-1.5 shadow-sm"
                           >
-                            <Check className="w-4 h-4" />
+                            {otpLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
                             <span>Verify OTP</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOtpInput(generatedOtp);
-                            }}
-                            className="px-3 py-2 text-xs text-amber-800 font-bold hover:underline"
-                          >
-                            Auto-fill
-                          </button>
+                          {otpDebugCode && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOtpInput(otpDebugCode);
+                              }}
+                              className="px-3 py-2 text-xs text-sky-800 font-bold hover:underline"
+                            >
+                              Auto-fill Code
+                            </button>
+                          )}
                           {otpResendCountdown > 0 && (
                             <span className="text-[11px] text-slate-500 ml-auto">
                               Resend in {otpResendCountdown}s
@@ -1356,7 +1524,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                           type="text"
                           value={newPatientForm.phone}
                           onChange={(e) => setNewPatientForm({ ...newPatientForm, phone: e.target.value })}
-                          placeholder="+91 9876543210"
+                          placeholder="Enter 10-digit mobile number"
                           className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
                         />
                       </div>
@@ -1420,22 +1588,80 @@ export default function KioskApp({ onSwitchToDoctor }) {
               <ArrowLeft className="w-4 h-4 mr-1" /> {t('backBtn')}
             </button>
 
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-7 h-7" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    {t('consentTitle')}
+                  </h1>
+                  <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+                    {t('consentSubtitle')}
+                  </p>
+                </div>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                {t('consentTitle')}
-              </h1>
+
+              {/* Default Audio Playback Status & Controls */}
+              <div className="flex items-center space-x-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleReadPageAloud()}
+                  className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold flex items-center space-x-2 transition shadow-md border ${
+                    isSpeakingPage
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 animate-pulse ring-4 ring-amber-100'
+                      : 'bg-sky-600 hover:bg-sky-700 text-white border-sky-700'
+                  }`}
+                  title={isSpeakingPage ? 'Pause / Mute Default Audio' : 'Replay Consent Audio'}
+                >
+                  {isSpeakingPage ? (
+                    <>
+                      <VolumeX className="w-5 h-5 text-white" />
+                      <span>{language === 'hi' ? 'ऑडियो रोकें' : language === 'kn' ? 'ಆಡಿಯೋ ನಿಲ್ಲಿಸಿ' : 'Pause Audio'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-5 h-5" />
+                      <span>{language === 'hi' ? 'पुनः सुनें' : language === 'kn' ? 'ಮತ್ತे आलिसि' : 'Replay Audio'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <p className="text-slate-500 text-xs sm:text-sm mb-6">
-              {t('consentSubtitle')}
-            </p>
+
+            {/* Default Audio Banner */}
+            {isSpeakingPage && (
+              <div className="mb-6 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-xs font-bold flex items-center justify-between animate-pulse">
+                <div className="flex items-center space-x-2">
+                  <Volume2 className="w-4 h-4 text-amber-600 animate-bounce" />
+                  <span>
+                    {language === 'hi'
+                      ? '🔊 डिफ़ॉल्ट हिंदी ऑडियो स्वचालित रूप से पढ़ा जा रहा है...'
+                      : language === 'kn'
+                      ? '🔊 ಡೀಫಾಲ್ಟ್ ಕನ್ನಡ ಆಡಿಯೋ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಪ್ಲೇ ಆಗುತ್ತಿದೆ...'
+                      : '🔊 Default audio is automatically reading this consent page aloud in your selected language...'}
+                  </span>
+                </div>
+                <span className="font-mono bg-amber-200/80 px-2 py-0.5 rounded text-[11px] font-black uppercase">
+                  {language.toUpperCase()} TTS ACTIVE
+                </span>
+              </div>
+            )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-sm text-slate-700 space-y-3 mb-8">
-              <p>• {t('consentText1')}</p>
-              <p>• {t('consentText2')}</p>
-              <p>• {t('consentText3')}</p>
+              <p className="flex items-start">
+                <span className="mr-2 text-sky-600 font-bold">•</span>
+                <span>{t('consentText1')}</span>
+              </p>
+              <p className="flex items-start">
+                <span className="mr-2 text-sky-600 font-bold">•</span>
+                <span>{t('consentText2')}</span>
+              </p>
+              <p className="flex items-start">
+                <span className="mr-2 text-sky-600 font-bold">•</span>
+                <span>{t('consentText3')}</span>
+              </p>
             </div>
 
             <label className="flex items-center space-x-3 p-4 bg-sky-50/70 border border-sky-200 rounded-2xl cursor-pointer mb-8">
@@ -1470,228 +1696,247 @@ export default function KioskApp({ onSwitchToDoctor }) {
             </button>
           </div>
         )}
-
         {/* ------------------------------------------------------------------ */}
-        {/* STEP 5: CLINICAL QUESTIONING LOOP */}
-        {/* ------------------------------------------------------------------ */}
-        {step === 'QUESTIONS' && currentQuestion && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 max-w-4xl mx-auto w-full fade-in flex flex-col justify-between min-h-[600px]">
-            
-            {/* Progress Bar & Sequence */}
-            <div>
-              <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-500 mb-2">
-                <span>
-                  {t('questionProgress')} {progress.current} {t('of')} {progress.total}
-                </span>
-                <span className="text-sky-700 font-extrabold">{progress.percent}%</span>
-              </div>
-              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-8">
-                <div
-                  className="h-full bg-gradient-to-r from-sky-500 to-teal-500 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.percent}%` }}
-                />
-              </div>
+        {step === 'QUESTIONS' && currentQuestion && (() => {
+          const qText = currentQuestion.text || currentQuestion.questionText || '';
+          const rawType = (currentQuestion.type || currentQuestion.questionType || 'single_choice').toLowerCase();
+          const qType = rawType === 'single_select' ? 'single_choice' : rawType === 'multi_select' ? 'multiple_choice' : rawType;
 
-              {/* Question Header & TTS Read-Out */}
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md border border-sky-200">
-                    {system === 'ayush' ? (language === 'hi' ? 'आयुष दशविध' : language === 'kn' ? 'ಆಯುಷ್ ದಶವಿಧ' : 'AYUSH Dashavidha') : (language === 'hi' ? 'एलोपैथी ओपीडी' : language === 'kn' ? 'ಅಲೋಪತಿ OPD' : 'Allopathy OPD')} • {currentQuestion.clinicalField}
-                  </span>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2 leading-snug">
-                    {currentQuestion.text}
-                  </h2>
-                  {currentQuestion.helpText && (
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                      {currentQuestion.helpText}
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleReplayAudio}
-                  title={t('replayQuestion')}
-                  className="p-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-2xl transition shrink-0 kiosk-touch-button"
-                >
-                  <Volume2 className="w-6 h-6 text-sky-600" />
-                </button>
-              </div>
-
-              {/* VOICE INTERACTION SECTION */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={toggleVoiceListening}
-                      className={`px-5 py-3 rounded-xl font-bold text-sm sm:text-base flex items-center space-x-2 transition ${
-                        isListening
-                          ? 'bg-red-600 text-white animate-pulse shadow-lg'
-                          : 'bg-sky-600 hover:bg-sky-700 text-white shadow-md'
-                      }`}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="w-5 h-5" />
-                          <span>{t('stopListening')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-5 h-5" />
-                          <span>{t('tapToSpeak')}</span>
-                        </>
-                      )}
-                    </button>
-                    <span className="text-xs text-slate-500 font-medium">
-                      {isListening ? t('listening') : (language === 'hi' ? '(माइक तैयार है)' : language === 'kn' ? '(ಮೈಕ್ರೊಫೋನ್ ಸಿದ್ಧವಾಗಿದೆ)' : '(Microphone input ready)')}
-                    </span>
-                  </div>
-
-                  <VoiceWaveform isListening={isListening} />
-                </div>
-
-                {/* Live Speech Recognition Transcript */}
-                {voiceTranscript && (
-                  <div className="mt-3 pt-3 border-t border-slate-200 text-sm text-slate-800">
-                    <span className="font-bold text-sky-700">{t('recognizedText')} </span>
-                    <span className="italic font-medium">"{voiceTranscript}"</span>
-                  </div>
-                )}
-              </div>
-
-              {/* QUESTION INPUT RENDERING ACCORDING TO QUESTION TYPE */}
+          return (
+            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 max-w-4xl mx-auto w-full fade-in flex flex-col justify-between min-h-[600px]">
               
-              {/* Type 1: Single Choice Options - Instant Auto-Submit */}
-              {currentQuestion.type === 'single_choice' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                  {currentQuestion.options?.map((opt) => (
-                    <button
-                      key={opt.value}
-                      disabled={isLoading}
-                      onClick={() => handleAutoSubmit(opt.value)}
-                      className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
-                        selectedOption === opt.value
-                          ? 'border-sky-600 bg-sky-50 text-sky-950 shadow-md ring-2 ring-sky-300 scale-[1.01]'
-                          : 'border-slate-200 hover:border-sky-400 text-slate-800 bg-white hover:bg-sky-50/40'
-                      }`}
-                    >
-                      <span>{opt.text}</span>
-                      {selectedOption === opt.value ? (
-                        <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2 animate-bounce" />
-                      ) : (
-                        <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 ml-2" />
-                      )}
-                    </button>
-                  ))}
+              {/* Progress Bar & Sequence */}
+              <div>
+                <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-500 mb-2">
+                  <span>
+                    {t('questionProgress')} {progress.current} {t('of')} {progress.total}
+                  </span>
+                  <span className="text-sky-700 font-extrabold">{progress.percent}%</span>
                 </div>
-              )}
-
-              {/* Type 2: Yes / No Big Touch Buttons - Instant Auto-Submit */}
-              {currentQuestion.type === 'yes_no' && (
-                <div className="grid grid-cols-2 gap-6 my-8">
-                  <button
-                    disabled={isLoading}
-                    onClick={() => handleAutoSubmit('yes')}
-                    className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
-                      selectedOption === 'yes'
-                        ? 'border-red-500 bg-red-50 text-red-700 ring-4 ring-red-100 scale-[1.02]'
-                        : 'border-slate-200 hover:border-red-300 text-slate-800 bg-white hover:bg-red-50/40'
-                    }`}
-                  >
-                    {language === 'hi' ? 'हाँ (YES)' : language === 'kn' ? 'ಹೌದು (YES)' : 'YES'}
-                  </button>
-
-                  <button
-                    disabled={isLoading}
-                    onClick={() => handleAutoSubmit('no')}
-                    className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
-                      selectedOption === 'no'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100 scale-[1.02]'
-                        : 'border-slate-200 hover:border-emerald-300 text-slate-800 bg-white hover:bg-emerald-50/40'
-                    }`}
-                  >
-                    {language === 'hi' ? 'नहीं (NO)' : language === 'kn' ? 'ಇಲ್ಲ (NO)' : 'NO'}
-                  </button>
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-8">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-500 to-teal-500 rounded-full transition-all duration-300"
+                    style={{ width: `${progress.percent}%` }}
+                  />
                 </div>
-              )}
 
-              {/* Type 3: Multiple Choice */}
-              {currentQuestion.type === 'multiple_choice' && (
-                <div className="space-y-4 mb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {currentQuestion.options?.map((opt) => {
-                      const isChecked = selectedMultiple.includes(opt.value);
-                      return (
-                        <button
-                          key={opt.value}
-                          onClick={() => {
-                            if (isChecked) {
-                              setSelectedMultiple(selectedMultiple.filter(v => v !== opt.value));
-                            } else {
-                              setSelectedMultiple([...selectedMultiple, opt.value]);
-                            }
-                          }}
-                          className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
-                            isChecked
-                              ? 'border-sky-600 bg-sky-50 text-sky-950 ring-2 ring-sky-200'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
-                          }`}
-                        >
-                          <span>{opt.text}</span>
-                          <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                            isChecked ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'
-                          }`}>
-                            {isChecked && <CheckCircle2 className="w-5 h-5" />}
-                          </div>
-                        </button>
-                      );
-                    })}
+                {/* Question Header & TTS Read-Out */}
+                <div className="flex items-start justify-between gap-4 mb-6">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md border border-sky-200">
+                      {system === 'ayush' ? (language === 'hi' ? 'आयुष दशविध' : language === 'kn' ? 'ಆಯುಷ್ ದಶವಿಧ' : 'AYUSH Dashavidha') : (language === 'hi' ? 'एलोपैथी ओपीडी' : language === 'kn' ? 'ಅಲೋಪತಿ OPD' : 'Allopathy OPD')} • {currentQuestion.clinicalField}
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2 leading-snug">
+                      {qText}
+                    </h2>
+                    {currentQuestion.helpText && (
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                        {currentQuestion.helpText}
+                      </p>
+                    )}
                   </div>
-                  {selectedMultiple.length > 0 && (
-                    <button
-                      disabled={isLoading}
-                      onClick={() => handleSubmitAnswer()}
-                      className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-md transition flex items-center justify-center space-x-2"
-                    >
-                      <span>{language === 'hi' ? 'उत्तर की पुष्टि करें' : language === 'kn' ? 'ದೃಢೀಕರಿಸಿ' : 'Confirm Selected Answers'}</span>
-                      <ArrowRight className="w-5 h-5" />
-                    </button>
+
+                  <button
+                    onClick={handleReplayAudio}
+                    title={t('replayQuestion')}
+                    className="p-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-2xl transition shrink-0 kiosk-touch-button"
+                  >
+                    <Volume2 className="w-6 h-6 text-sky-600" />
+                  </button>
+                </div>
+
+                {/* VOICE INTERACTION SECTION */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={toggleVoiceListening}
+                        className={`px-5 py-3 rounded-xl font-bold text-sm sm:text-base flex items-center space-x-2 transition ${
+                          isListening
+                            ? 'bg-red-600 text-white animate-pulse shadow-lg'
+                            : 'bg-sky-600 hover:bg-sky-700 text-white shadow-md'
+                        }`}
+                      >
+                        {isListening ? (
+                          <>
+                            <MicOff className="w-5 h-5" />
+                            <span>{t('stopListening')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="w-5 h-5" />
+                            <span>{t('tapToSpeak')}</span>
+                          </>
+                        )}
+                      </button>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {isListening ? t('listening') : (language === 'hi' ? '(माइक तैयार है)' : language === 'kn' ? '(ಮೈಕ್ರೊಫೋನ್ ಸಿದ್ಧವಾಗಿದೆ)' : '(Microphone input ready)')}
+                      </span>
+                    </div>
+
+                    <VoiceWaveform isListening={isListening} />
+                  </div>
+
+                  {/* Live Speech Recognition Transcript */}
+                  {voiceTranscript && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 text-sm text-slate-800">
+                      <span className="font-bold text-sky-700">{t('recognizedText')} </span>
+                      <span className="italic font-medium">"{voiceTranscript}"</span>
+                    </div>
+                  )}
+
+                  {/* Microphone Error / Permission Alert Banner */}
+                  {micErrorMsg && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{micErrorMsg}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setMicErrorMsg(''); toggleVoiceListening(); }}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-extrabold text-[11px] shrink-0 ml-2"
+                      >
+                        Try Again
+                      </button>
+                    </div>
                   )}
                 </div>
-              )}
 
-              {/* Type 4: Pain Scale Touch Buttons (1-10) - Instant Auto-Submit */}
-              {currentQuestion.type === 'number' && (
-                <div className="my-6 bg-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-4">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    {language === 'hi' ? 'दर्द का स्तर चुनें (1 हल्का - 10 अत्यधिक)' : language === 'kn' ? 'ನೋವಿನ ಪ್ರಮಾಣವನ್ನು ಆರಿಸಿ (1-10)' : 'Touch a number to rate your pain severity (1-10)'}
-                  </div>
-                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                {/* QUESTION INPUT RENDERING ACCORDING TO QUESTION TYPE */}
+                
+                {/* Type 1: Single Choice Options - Instant Auto-Submit */}
+                {qType === 'single_choice' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    {currentQuestion.options?.map((opt) => (
                       <button
-                        key={num}
-                        type="button"
+                        key={opt.value}
                         disabled={isLoading}
-                        onClick={() => handleAutoSubmit(String(num))}
-                        className={`p-3 sm:py-4 rounded-xl border-2 font-black text-lg sm:text-xl transition kiosk-touch-button ${
-                          num >= 8
-                            ? 'border-red-300 hover:border-red-600 hover:bg-red-50 text-red-700 bg-white'
-                            : num >= 5
-                            ? 'border-amber-300 hover:border-amber-600 hover:bg-amber-50 text-amber-700 bg-white'
-                            : 'border-slate-200 hover:border-sky-600 hover:bg-sky-50 text-slate-800 bg-white'
-                        } ${String(numberInput) === String(num) ? 'ring-2 ring-sky-500 bg-sky-100 font-extrabold' : ''}`}
+                        onClick={() => handleAutoSubmit(opt.value)}
+                        className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
+                          selectedOption === opt.value
+                            ? 'border-sky-600 bg-sky-50 text-sky-950 shadow-md ring-2 ring-sky-300 scale-[1.01]'
+                            : 'border-slate-200 hover:border-sky-400 text-slate-800 bg-white hover:bg-sky-50/40'
+                        }`}
                       >
-                        {num}
+                        <span>{opt.text}</span>
+                        {selectedOption === opt.value ? (
+                          <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2 animate-bounce" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 ml-2" />
+                        )}
                       </button>
                     ))}
                   </div>
-                  <div className="flex justify-between text-xs font-bold text-slate-400 px-1">
-                    <span>1 ({language === 'hi' ? 'हल्का' : language === 'kn' ? 'ಕಡಿಮೆ' : 'Mild'})</span>
-                    <span>5 ({language === 'hi' ? 'मध्यम' : language === 'kn' ? 'ಮಧ್ಯಮ' : 'Moderate'})</span>
-                    <span className="text-red-600">10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Emergency'})</span>
+                )}
+
+                {/* Type 2: Yes / No Big Touch Buttons - Instant Auto-Submit */}
+                {qType === 'yes_no' && (
+                  <div className="grid grid-cols-2 gap-6 my-8">
+                    <button
+                      disabled={isLoading}
+                      onClick={() => handleAutoSubmit('yes')}
+                      className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
+                        selectedOption === 'yes'
+                          ? 'border-red-500 bg-red-50 text-red-700 ring-4 ring-red-100 scale-[1.02]'
+                          : 'border-slate-200 hover:border-red-300 text-slate-800 bg-white hover:bg-red-50/40'
+                      }`}
+                    >
+                      {language === 'hi' ? 'हाँ (YES)' : language === 'kn' ? 'ಹೌದು (YES)' : 'YES'}
+                    </button>
+
+                    <button
+                      disabled={isLoading}
+                      onClick={() => handleAutoSubmit('no')}
+                      className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
+                        selectedOption === 'no'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100 scale-[1.02]'
+                          : 'border-slate-200 hover:border-emerald-300 text-slate-800 bg-white hover:bg-emerald-50/40'
+                      }`}
+                    >
+                      {language === 'hi' ? 'नहीं (NO)' : language === 'kn' ? 'ಇಲ್ಲ (NO)' : 'NO'}
+                    </button>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Type 3: Multiple Choice */}
+                {qType === 'multiple_choice' && (
+                  <div className="space-y-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {currentQuestion.options?.map((opt) => {
+                        const isChecked = selectedMultiple.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => {
+                              if (isChecked) {
+                                setSelectedMultiple(selectedMultiple.filter(v => v !== opt.value));
+                              } else {
+                                setSelectedMultiple([...selectedMultiple, opt.value]);
+                              }
+                            }}
+                            className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
+                              isChecked
+                                ? 'border-sky-600 bg-sky-50 text-sky-950 ring-2 ring-sky-200'
+                                : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
+                            }`}
+                          >
+                            <span>{opt.text}</span>
+                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
+                              isChecked ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'
+                            }`}>
+                              {isChecked && <CheckCircle2 className="w-5 h-5" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedMultiple.length > 0 && (
+                      <button
+                        disabled={isLoading}
+                        onClick={() => handleSubmitAnswer()}
+                        className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-md transition flex items-center justify-center space-x-2"
+                      >
+                        <span>{language === 'hi' ? 'उत्तर की पुष्टि करें' : language === 'kn' ? 'ದೃಢೀಕರಿಸಿ' : 'Confirm Selected Answers'}</span>
+                        <ArrowRight className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Type 4: Pain Scale Touch Buttons (1-10) - Instant Auto-Submit */}
+                {qType === 'number' && (
+                  <div className="my-6 bg-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      {language === 'hi' ? 'दर्द का स्तर चुनें (1 हल्का - 10 अत्यधिक)' : language === 'kn' ? 'ನೋವಿನ ಪ್ರಮಾಣವನ್ನು ಆರಿಸಿ (1-10)' : 'Touch a number to rate your pain severity (1-10)'}
+                    </div>
+                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => handleAutoSubmit(String(num))}
+                          className={`p-3 sm:py-4 rounded-xl border-2 font-black text-lg sm:text-xl transition kiosk-touch-button ${
+                            num >= 8
+                              ? 'border-red-300 hover:border-red-600 hover:bg-red-50 text-red-700 bg-white'
+                              : num >= 5
+                              ? 'border-amber-300 hover:border-amber-600 hover:bg-amber-50 text-amber-700 bg-white'
+                              : 'border-slate-200 hover:border-sky-600 hover:bg-sky-50 text-slate-800 bg-white'
+                          } ${String(numberInput) === String(num) ? 'ring-2 ring-sky-500 bg-sky-100 font-extrabold' : ''}`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-slate-400 px-1">
+                      <span>1 ({language === 'hi' ? 'हल्का' : language === 'kn' ? 'ಕಡಿಮೆ' : 'Mild'})</span>
+                      <span>5 ({language === 'hi' ? 'मध्यम' : language === 'kn' ? 'ಮಧ್ಯಮ' : 'Moderate'})</span>
+                      <span className="text-red-600">10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Emergency'})</span>
+                    </div>
+                  </div>
+                )}
 
               {/* Text Input Fallback with Enter key / Send button */}
               <div className="mt-4 relative">
@@ -1749,7 +1994,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
             </div>
 
           </div>
-        )}
+          );
+        })()}
 
         {/* ------------------------------------------------------------------ */}
         {/* STEP 6: PREVIOUS MEDICAL DOCUMENTS UPLOAD & OCR */}

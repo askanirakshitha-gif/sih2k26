@@ -48,48 +48,86 @@ export class BrowserSpeechProvider extends VoiceProvider {
     return !!this.recognitionClass;
   }
 
-  startListening({ language = 'en', onResult, onError, onStart, onEnd }) {
-    if (!this.recognitionClass) {
-      if (onError) onError(new Error("Browser speech recognition is not supported in this browser."));
+  async startListening({ language = 'en', onResult, onError, onStart, onEnd }) {
+    if (!this.recognitionClass && !navigator.mediaDevices?.getUserMedia) {
+      if (onError) onError(new Error("Browser microphone audio capture is not supported."));
       return;
     }
 
     try {
       this.stopListening();
+      this.isListening = true;
 
-      this.activeRecognition = new this.recognitionClass();
-      this.activeRecognition.continuous = false;
-      this.activeRecognition.interimResults = true;
-      this.activeRecognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+      // 1. Acoustic Hardware Noise Cancellation Stream (Echo Cancellation & Noise Suppression)
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          this.audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+        } catch (permissionErr) {
+          // Seamless fallthrough: do NOT block speech recognition if getUserMedia is restricted
+          console.info('[Mic Hardware Stream Fallthrough]', permissionErr);
+        }
+      }
 
-      this.activeRecognition.onstart = () => {
-        this.isListening = true;
+      if (this.recognitionClass) {
+        this.activeRecognition = new this.recognitionClass();
+        this.activeRecognition.continuous = true;
+        this.activeRecognition.interimResults = true;
+        this.activeRecognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+
+        this.activeRecognition.onstart = () => {
+          this.isListening = true;
+          if (onStart) onStart();
+        };
+
+        this.activeRecognition.onresult = (event) => {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
+          }
+          if (onResult && transcript) {
+            const isFinal = event.results[event.results.length - 1].isFinal;
+            onResult(transcript, isFinal);
+          }
+        };
+
+        this.activeRecognition.onerror = (event) => {
+          console.warn('[Speech Recognition Error]', event.error);
+          if (event.error === 'no-speech') {
+            // Silence detected, keep listening if active
+            return;
+          }
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            this.isListening = false;
+            if (onError) onError({ error: 'not-allowed', message: 'Microphone access is blocked by browser security.' });
+          } else if (onError) {
+            onError(event);
+          }
+        };
+
+        this.activeRecognition.onend = () => {
+          // If still marked as listening, auto-restart (continuous resilience)
+          if (this.isListening && this.activeRecognition) {
+            try {
+              this.activeRecognition.start();
+              return;
+            } catch (e) {
+              // Ignore restart error
+            }
+          }
+          this.isListening = false;
+          if (onEnd) onEnd();
+        };
+
+        this.activeRecognition.start();
+      } else {
         if (onStart) onStart();
-      };
-
-      this.activeRecognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript += event.results[i][0].transcript;
-        }
-        if (onResult) {
-          const isFinal = event.results[event.results.length - 1].isFinal;
-          onResult(transcript, isFinal);
-        }
-      };
-
-      this.activeRecognition.onerror = (event) => {
-        console.warn('[Speech Error]', event.error);
-        this.isListening = false;
-        if (onError) onError(event);
-      };
-
-      this.activeRecognition.onend = () => {
-        this.isListening = false;
-        if (onEnd) onEnd();
-      };
-
-      this.activeRecognition.start();
+      }
     } catch (err) {
       this.isListening = false;
       if (onError) onError(err);
@@ -97,6 +135,7 @@ export class BrowserSpeechProvider extends VoiceProvider {
   }
 
   stopListening() {
+    this.isListening = false;
     if (this.activeRecognition) {
       try {
         this.activeRecognition.stop();
@@ -104,7 +143,14 @@ export class BrowserSpeechProvider extends VoiceProvider {
         // Ignore if already stopped
       }
       this.activeRecognition = null;
-      this.isListening = false;
+    }
+    if (this.audioStream) {
+      try {
+        this.audioStream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        // Ignore track stop
+      }
+      this.audioStream = null;
     }
   }
 

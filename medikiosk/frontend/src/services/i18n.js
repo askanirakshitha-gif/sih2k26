@@ -51,6 +51,9 @@ export const translations = {
     consentText3: "Digital records may be formatted into FHIR standards and securely integrated with the Hospital Information System (HIS) with my consent.",
     consentCheckbox: "I understand and agree to the clinical history-taking process.",
     agreeContinueBtn: "I Agree & Begin Consultation",
+    listenPageAudio: "Listen to Page (Audio)",
+    stopPageAudio: "Stop Audio Reading",
+
     
     // Kiosk Question Screen
     questionProgress: "Question",
@@ -138,6 +141,9 @@ export const translations = {
     consentText3: "यह डेटा सुरक्षित रूप से अस्पताल सूचना प्रणाली (HIS) के साथ साझा किया जा सकता है।",
     consentCheckbox: "मैं नियमों को समझता/समझती हूँ और सहमत हूँ।",
     agreeContinueBtn: "सहमति दें एवं परामर्श शुरू करें",
+    listenPageAudio: "पेज ऑडियो सुनें",
+    stopPageAudio: "ऑडियो बंद करें",
+
     
     // Kiosk Question Screen
     questionProgress: "प्रश्न",
@@ -225,6 +231,9 @@ export const translations = {
     consentText3: "ನನ್ನ ಸಮ್ಮತಿಯೊಂದಿಗೆ ಡಿಜಿಟಲ್ ದಾಖಲೆಗಳನ್ನು FHIR ಮಾನದಂಡಗಳಲ್ಲಿ ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆಗೆ (HIS) ಸುರಕ್ಷಿತವಾಗಿ ರವಾನಿಸಬಹುದು.",
     consentCheckbox: "ನಾನು ನಿಯಮಗಳನ್ನು ಅರ್ಥಮಾಡಿಕೊಂಡಿದ್ದೇನೆ ಮತ್ತು ಸಮಾಲೋಚನೆಗೆ ಒಪ್ಪುತ್ತೇನೆ.",
     agreeContinueBtn: "ನಾನು ಒಪ್ಪುತ್ತೇನೆ ಮತ್ತು ಸಮಾಲೋಚನೆ ಪ್ರಾರಂಭಿಸಿ",
+    listenPageAudio: "ಪುಟದ ಆಡಿಯೋ ಆಲಿಸಿ",
+    stopPageAudio: "ಆಡಿಯೋ ನಿಲ್ಲಿಸಿ",
+
     
     // Kiosk Question Screen
     questionProgress: "ಪ್ರಶ್ನೆ",

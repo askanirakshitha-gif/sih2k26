@@ -1,0 +1,18 @@
+{
+  "name": "medikiosk-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MediKiosk Clinical Outpatient & Triage System - Full-Stack Workspace",
+  "scripts": {
+    "dev:backend": "python -m uvicorn main:app --app-dir backend --host 0.0.0.0 --port 5000 --reload",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,magenta\" --kill-others \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "npm --prefix frontend run build",
+    "start": "python -m uvicorn main:app --app-dir backend --host 0.0.0.0 --port 5000",
+    "test:backend": "python backend/test_suite.py",
+    "install:all": "npm --prefix frontend install && pip install -r backend/requirements.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

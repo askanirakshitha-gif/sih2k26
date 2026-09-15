@@ -13,7 +13,7 @@ const SEED_PATIENTS = [
     full_name: 'Ramesh Sharma',
     age: 54,
     gender: 'Male',
-    phone: '+91 9876543210',
+    phone: '+91 ******0001',
     blood_group: 'B+'
   },
   {
@@ -23,7 +23,7 @@ const SEED_PATIENTS = [
     full_name: 'Sunita Patel',
     age: 42,
     gender: 'Female',
-    phone: '+91 9812345678',
+    phone: '+91 ******0002',
     blood_group: 'O+'
   },
   {
@@ -33,7 +33,7 @@ const SEED_PATIENTS = [
     full_name: 'Rajesh Kumar',
     age: 61,
     gender: 'Male',
-    phone: '+91 9765432109',
+    phone: '+91 ******0003',
     blood_group: 'A+'
   }
 ];
@@ -555,14 +555,14 @@ const persistSessions = () => {
 const loadPersistedSessions = () => {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      const raw = localStorage.getItem('medikiosk_local_sessions');
+      const raw = window.localStorage.getItem('medikiosk_local_sessions');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
           localSessions = parsed;
         }
       }
-      const rawSumm = localStorage.getItem('medikiosk_local_summaries');
+      const rawSumm = window.localStorage.getItem('medikiosk_local_summaries');
       if (rawSumm) {
         localSummaries = { ...localSummaries, ...JSON.parse(rawSumm) };
       }
@@ -900,7 +900,7 @@ export const StandaloneMockEngine = {
       full_name: patientData.full_name,
       age: parseInt(patientData.age, 10) || 30,
       gender: patientData.gender || 'Male',
-      phone: patientData.phone || '+91 9876543210',
+      phone: patientData.phone || '',
       blood_group: patientData.blood_group || 'O+'
     };
     SEED_PATIENTS.push(newP);
@@ -1321,6 +1321,70 @@ export const StandaloneMockEngine = {
     };
   },
 
+  sendOtp: (phone) => {
+    const digits = (phone || '').replace(/\D/g, '');
+    const clean10 = digits.slice(-10);
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const masked = clean10.length === 10 ? `+91 ******${clean10.slice(-4)}` : '******';
+    
+    if (!_mockOtpStore) window._mockOtpStore = new Map();
+    (window._mockOtpStore || _mockOtpStore).set(clean10, {
+      code,
+      createdAt: Date.now(),
+      attempts: 0
+    });
+
+    console.log(`[MockEngine] Generated OTP for ${masked}: ${code}`);
+    return {
+      success: true,
+      message: `OTP sent to ${masked} via Offline Kiosk Engine`,
+      phone_masked: masked,
+      otp: code,
+      gateway: 'Offline Kiosk Engine',
+      expires_in_seconds: 300
+    };
+  },
+
+  verifyOtp: (phone, otp) => {
+    const digits = (phone || '').replace(/\D/g, '');
+    const clean10 = digits.slice(-10);
+    const store = window._mockOtpStore || _mockOtpStore;
+    const record = store ? store.get(clean10) : null;
+
+    if (!record) {
+      return {
+        success: false,
+        verified: false,
+        message: 'No active OTP request found. Please request a new OTP.'
+      };
+    }
+
+    if (Date.now() - record.createdAt > 300000) {
+      store.delete(clean10);
+      return {
+        success: false,
+        verified: false,
+        message: 'OTP has expired. Please request a new OTP.'
+      };
+    }
+
+    if ((otp || '').trim() === record.code) {
+      store.delete(clean10);
+      return {
+        success: true,
+        verified: true,
+        message: 'Mobile number verified successfully.'
+      };
+    }
+
+    record.attempts += 1;
+    return {
+      success: false,
+      verified: false,
+      message: 'Invalid OTP code. Please check the code and try again.'
+    };
+  },
+
   pushToAbdm: (pushData) => ({
     success: true,
     message: 'Record successfully pushed to mock HIS/ABDM',
@@ -1335,3 +1399,6 @@ export const StandaloneMockEngine = {
     }
   })
 };
+
+const _mockOtpStore = new Map();
+

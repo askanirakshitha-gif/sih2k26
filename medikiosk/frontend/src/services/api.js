@@ -1,20 +1,44 @@
 import axios from 'axios';
 import { StandaloneMockEngine } from './mockEngine';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 1000, // Quick timeout for seamless standalone fallback
+  baseURL: BASE_URL,
+  timeout: 8000, // 8-second timeout for real backend OCR and AI processing
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
 export const KioskService = {
+  sendOtp: async (phone) => {
+    try {
+      const res = await api.post('/otp/send', { phone });
+      return res.data;
+    } catch (err) {
+      console.warn('[MediKiosk API] /otp/send unavailable, fallback to mock engine:', err?.message);
+      return StandaloneMockEngine.sendOtp(phone);
+    }
+  },
+
+  verifyOtp: async (phone, otp) => {
+    try {
+      const res = await api.post('/otp/verify', { phone, otp });
+      return res.data;
+    } catch (err) {
+      console.warn('[MediKiosk API] /otp/verify unavailable, fallback to mock engine:', err?.message);
+      return StandaloneMockEngine.verifyOtp(phone, otp);
+    }
+  },
+
   getPatients: async () => {
+
     try {
       const res = await api.get('/patients');
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] /patients unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.getPatients();
     }
   },
@@ -23,25 +47,58 @@ export const KioskService = {
     try {
       const res = await api.post('/patients', patientData);
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] /patients registration unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.registerPatient(patientData);
     }
   },
 
   startSession: async ({ language, system, patientId, conditionId }) => {
+    const payload = {
+      language: language || 'en',
+      system: system || 'allopathy',
+      mode: (system || '').toUpperCase() === 'AYUSH' ? 'AYUSH' : 'ALLOPATHIC',
+      patientId: patientId || null,
+      patient_identifier: patientId || null,
+      conditionId: conditionId || null
+    };
+
     try {
-      const res = await api.post('/start', { language, system, patientId, conditionId });
+      // Try standardized /session/init first, fallback to /start
+      let res;
+      try {
+        res = await api.post('/session/init', payload);
+      } catch {
+        res = await api.post('/start', payload);
+      }
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Session init unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.startSession({ language, system, patientId, conditionId });
     }
   },
 
   submitAnswer: async ({ sessionId, questionId, answer, voiceTranscript }) => {
+    const payload = {
+      sessionId: sessionId,
+      session_id: sessionId,
+      questionId: questionId,
+      answer: answer || '',
+      user_input: answer || voiceTranscript || '',
+      voiceTranscript: voiceTranscript || ''
+    };
+
     try {
-      const res = await api.post('/next', { sessionId, questionId, answer, voiceTranscript });
+      // Try standardized /session/turn first, fallback to /next
+      let res;
+      try {
+        res = await api.post('/session/turn', payload);
+      } catch {
+        res = await api.post('/next', payload);
+      }
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Session turn unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.submitAnswer({ sessionId, questionId, answer, voiceTranscript });
     }
   },
@@ -50,8 +107,29 @@ export const KioskService = {
     try {
       const res = await api.get(`/summary/${sessionId}`);
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Session summary unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.getSessionDetail(sessionId);
+    }
+  },
+
+  finalizeSession: async (sessionId) => {
+    try {
+      const res = await api.post('/session/finalize', {
+        session_id: sessionId,
+        sessionId: sessionId
+      });
+      return res.data;
+    } catch (err) {
+      console.warn('[MediKiosk API] Finalize session unavailable, using local mock engine:', err?.message);
+      return {
+        success: true,
+        sessionId: sessionId,
+        summary: StandaloneMockEngine.getSessionDetail(sessionId)?.summary || {},
+        fhirBundle: StandaloneMockEngine.getFhirBundle(sessionId),
+        entriesCount: 6,
+        dpdp_purged: true
+      };
     }
   },
 
@@ -63,7 +141,8 @@ export const KioskService = {
         }
       });
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Document upload unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.uploadDocument(formData);
     }
   },
@@ -72,7 +151,8 @@ export const KioskService = {
     try {
       const res = await api.get(`/documents/patient/${patientId}`);
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Patient documents unavailable, returning empty timeline:', err?.message);
       return { success: true, timeline: [] };
     }
   }
@@ -81,18 +161,32 @@ export const KioskService = {
 export const DoctorService = {
   getSessions: async () => {
     try {
-      const res = await api.get('/doctor/sessions');
+      // Try /doctor/queue first, fallback to /doctor/sessions
+      let res;
+      try {
+        res = await api.get('/doctor/queue');
+      } catch {
+        res = await api.get('/doctor/sessions');
+      }
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Doctor queue unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.getSessions();
     }
   },
 
   getSessionDetail: async (sessionId) => {
     try {
-      const res = await api.get(`/doctor/session/${sessionId}`);
+      // Try /doctor/summary/{sessionId} first, fallback to /doctor/session/{sessionId}
+      let res;
+      try {
+        res = await api.get(`/doctor/summary/${sessionId}`);
+      } catch {
+        res = await api.get(`/doctor/session/${sessionId}`);
+      }
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Doctor session detail unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.getSessionDetail(sessionId);
     }
   },
@@ -101,7 +195,8 @@ export const DoctorService = {
     try {
       const res = await api.post('/doctor-review', reviewData);
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] Doctor review submission unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.submitReview(reviewData);
     }
   },
@@ -110,7 +205,8 @@ export const DoctorService = {
     try {
       const res = await api.get(`/fhir/${sessionId}`);
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] FHIR bundle unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.getFhirBundle(sessionId);
     }
   },
@@ -119,7 +215,8 @@ export const DoctorService = {
     try {
       const res = await api.post('/integrations/push', pushData);
       return res.data;
-    } catch {
+    } catch (err) {
+      console.warn('[MediKiosk API] ABDM push unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.pushToAbdm(pushData);
     }
   }

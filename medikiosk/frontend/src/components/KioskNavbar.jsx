@@ -1,8 +1,8 @@
 import React from 'react';
-import { Activity, Globe, AlertTriangle, UserCheck, Shield } from 'lucide-react';
+import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX } from 'lucide-react';
 import { getTranslation } from '../services/i18n';
 
-export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag }) {
+export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud }) {
   const t = (key) => getTranslation(language, key);
 
   return (
@@ -31,6 +31,31 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
         {/* Status Badges & Controls */}
         <div className="flex items-center space-x-3">
           
+          {/* Audio Page Read-Aloud Button */}
+          {onReadPageAloud && (
+            <button
+              onClick={() => onReadPageAloud()}
+              className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all shadow-sm ${
+                isSpeakingPage
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white animate-pulse ring-2 ring-amber-300'
+                  : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300'
+              }`}
+              title={isSpeakingPage ? t('stopPageAudio') : t('listenPageAudio')}
+            >
+              {isSpeakingPage ? (
+                <>
+                  <VolumeX className="w-4 h-4 text-white" />
+                  <span>{t('stopPageAudio')}</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4 text-sky-600" />
+                  <span>{t('listenPageAudio')}</span>
+                </>
+              )}
+            </button>
+          )}
+
           {/* Active Red Flag Alert Badge */}
           {isRedFlag && (
             <div className="flex items-center space-x-2 bg-red-100 text-red-700 border border-red-300 px-3 py-1.5 rounded-lg animate-pulse font-bold text-xs sm:text-sm">
