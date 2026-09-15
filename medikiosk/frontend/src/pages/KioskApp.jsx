@@ -11,9 +11,12 @@ import { getTranslation } from '../services/i18n';
 import KioskNavbar from '../components/KioskNavbar';
 import VoiceWaveform from '../components/VoiceWaveform';
 import RedFlagModal from '../components/RedFlagModal';
+import HospitalGpsTracker from '../components/HospitalGpsTracker';
 import { dispatchEmergencyAlert } from '../services/alertSync';
 
 export default function KioskApp({ onSwitchToDoctor }) {
+  // Navigation Views: 'HOSPITALS' (Landing & GPS Tracker) | 'INTAKE' (Clinical History Kiosk)
+  const [activeView, setActiveView] = useState('HOSPITALS');
   // Navigation Steps: 'LANG' | 'SYSTEM' | 'PATIENT' | 'CONSENT' | 'QUESTIONS' | 'DOCS' | 'DONE'
   const [step, setStep] = useState('LANG');
   const [language, setLanguage] = useState('en');
@@ -742,6 +745,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
         isRedFlag={isRedFlag}
         isSpeakingPage={isSpeakingPage}
         onReadPageAloud={handleReadPageAloud}
+        activeView={activeView}
+        onNavigateView={(v) => setActiveView(v)}
       />
 
       {/* Red Flag Emergency Alert Modal */}
@@ -781,8 +786,17 @@ export default function KioskApp({ onSwitchToDoctor }) {
         </div>
       )}
 
-      {/* Main Kiosk Touch Surface */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">
+      {/* Render View: HOSPITALS (Hero Banner + GPS Tracker) OR INTAKE (Questionnaire) */}
+      {activeView === 'HOSPITALS' ? (
+        <HospitalGpsTracker
+          language={language}
+          onStartKiosk={() => {
+            setActiveView('INTAKE');
+            setStep('LANG');
+          }}
+        />
+      ) : (
+        <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">
 
         {/* ------------------------------------------------------------------ */}
         {/* STEP 1: LANGUAGE SELECTION */}
@@ -2161,6 +2175,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
         )}
 
       </main>
+      )}
 
       {/* Persistent Bottom Bar to Switch to Doctor Dashboard */}
       <footer className="bg-white border-t border-slate-200 py-3 px-4 text-center">
