@@ -135,33 +135,44 @@ medikiosk/
 
 ---
 
-### Terminal 1: Backend Service
-```bash
-cd backend
-npm install
-npm run dev
+### 🚀 Unified Single-Link Startup (Recommended)
+You can run the entire full-stack system from a single command and access everything through **one unified link**:
+
+```powershell
+# Windows (PowerShell)
+cd medikiosk
+powershell -ExecutionPolicy Bypass -File .\run_dev.ps1
 ```
-*Backend runs on `http://localhost:5000`.*
+
+```bash
+# Linux / macOS (Bash)
+cd medikiosk
+chmod +x run_dev.sh
+./run_dev.sh
+```
+
+**Single Unified Live URL:**
+- **App & Kiosk Workstation:** [http://localhost:5000](http://localhost:5000)
+- **FastAPI Interactive Docs:** [http://localhost:5000/docs](http://localhost:5000/docs)
+- **API Health Check:** [http://localhost:5000/api/health](http://localhost:5000/api/health)
 
 ---
 
-### Terminal 2: AI Microservice
+### Independent Service Startup (Development Mode)
+
+#### Terminal 1: FastAPI Unified Backend
 ```bash
-cd ai-service
-pip install -r requirements.txt
-python main.py
+cd medikiosk/backend
+python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ```
-*AI Microservice runs on `http://localhost:8000` (FastAPI Swagger docs available at `http://localhost:8000/docs`).*
+*Backend runs on `http://localhost:5000` (FastAPI Swagger docs at `http://localhost:5000/docs`).*
 
----
-
-### Terminal 3: Frontend React Kiosk
+#### Terminal 2: Vite React Kiosk (Hot Reload)
 ```bash
-cd frontend
-npm install
+cd medikiosk/frontend
 npm run dev
 ```
-*Frontend opens at `http://localhost:3000`.*
+*Hot-reload dev frontend opens on `http://localhost:3000`.*
 
 ---
 
