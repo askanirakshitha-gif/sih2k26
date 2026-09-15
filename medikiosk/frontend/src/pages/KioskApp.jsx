@@ -256,6 +256,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
       if (matched) {
         setSelectedPatient(matched);
         setAbhaPatient(matched);
+        setPatients(prev => [matched, ...prev.filter(p => p.id !== matched.id)]);
         setNewPatientForm({
           full_name: matched.full_name,
           age: matched.age,
@@ -280,6 +281,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
         };
         setSelectedPatient(mockAbdmPatient);
         setAbhaPatient(mockAbdmPatient);
+        setPatients(prev => [mockAbdmPatient, ...prev.filter(p => p.id !== mockAbdmPatient.id)]);
         setNewPatientForm({
           full_name: mockAbdmPatient.full_name,
           age: mockAbdmPatient.age,
@@ -407,8 +409,49 @@ export default function KioskApp({ onSwitchToDoctor }) {
     }
   };
 
+  // Register and persist a new walk-in patient immediately
+  const handleRegisterAndSavePatient = async (customFormData) => {
+    const dataToSave = customFormData || newPatientForm;
+    if (!dataToSave.full_name?.trim() || !dataToSave.age) {
+      return null;
+    }
+    try {
+      const regRes = await KioskService.registerPatient(dataToSave);
+      if (regRes && regRes.success && regRes.patient) {
+        const savedPatient = regRes.patient;
+        setSelectedPatient(savedPatient);
+        setPatients(prev => [savedPatient, ...prev.filter(p => p.id !== savedPatient.id && p.full_name !== savedPatient.full_name)]);
+        return savedPatient;
+      }
+    } catch (err) {
+      console.warn('Backend patient registration error, registering locally:', err);
+    }
+    // Reliable local fallback
+    const localPatient = {
+      id: `p-${Date.now()}`,
+      abha_id: dataToSave.abha_id || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
+      full_name: dataToSave.full_name.trim(),
+      age: parseInt(dataToSave.age, 10) || 30,
+      gender: dataToSave.gender || 'Male',
+      phone: dataToSave.phone || phoneInput || '',
+      blood_group: dataToSave.blood_group || 'O+'
+    };
+    setSelectedPatient(localPatient);
+    setPatients(prev => [localPatient, ...prev.filter(p => p.id !== localPatient.id)]);
+    return localPatient;
+  };
+
+  // Switch to Demo Patients tab and sync any entered new patient
+  const handleSwitchToDemoTab = async () => {
+    if (newPatientForm.full_name?.trim() && newPatientForm.age) {
+      await handleRegisterAndSavePatient();
+    }
+    setIsNewPatient(false);
+    setRegValidationError('');
+  };
+
   // Handle Proceed to Consent
-  const handleProceedToConsent = () => {
+  const handleProceedToConsent = async () => {
     setRegValidationError('');
 
     if (!isNewPatient) {
@@ -471,6 +514,13 @@ export default function KioskApp({ onSwitchToDoctor }) {
       }
     }
 
+    // Persist registered patient and add to patients list immediately
+    const saved = await handleRegisterAndSavePatient();
+    if (saved) {
+      setSelectedPatient(saved);
+      setIsNewPatient(false);
+    }
+
     setStep('CONSENT');
   };
 
@@ -488,6 +538,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
           if (regRes.success) {
             finalPatientId = regRes.patient.id;
             setSelectedPatient(regRes.patient);
+            setPatients(prev => [regRes.patient, ...prev.filter(p => p.id !== regRes.patient.id)]);
           }
         }
       }
@@ -530,12 +581,19 @@ export default function KioskApp({ onSwitchToDoctor }) {
       setIsListening(false);
     } else {
       defaultVoiceProvider.cancelSpeech();
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
       setIsListening(true);
       setVoiceTranscript('');
+      setMicErrorMsg('');
 
       defaultVoiceProvider.startListening({
         language,
-        onStart: () => setIsListening(true),
+        onStart: () => {
+          setIsListening(true);
+          setMicErrorMsg('');
+        },
         onResult: (text, isFinal) => {
           setVoiceTranscript(text);
           setTextInput(text);
@@ -591,8 +649,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
             }
           } else if (currentQuestion && (currentQuestion.type === 'yes_no' || currentQuestion.questionType === 'yes_no')) {
             const lower = text.toLowerCase();
-            const isYes = lower.includes('yes') || lower.includes('हाँ') || lower.includes('हां') || lower.includes('हೌದು') || lower.includes('ಹೌದು');
-            const isNo = lower.includes('no') || lower.includes('नहीं') || lower.includes('ना') || lower.includes('ಇಲ್ಲ');
+            const isYes = lower.includes('yes') || lower.includes('हाँ') || lower.includes('हां') || lower.includes('हೌದು') || lower.includes('ಹೌದು') || lower.includes('ha') || lower.includes('haan') || lower.includes('sahi');
+            const isNo = lower.includes('no') || lower.includes('नहीं') || lower.includes('ना') || lower.includes('ಇಲ್ಲ') || lower.includes('nahi') || lower.includes('illa');
 
             if (isYes) {
               setSelectedOption('yes');
@@ -609,11 +667,16 @@ export default function KioskApp({ onSwitchToDoctor }) {
         },
         onError: (err) => {
           console.warn('[Microphone/Speech Stream]', err);
-          // Keep listening status active unless explicitly stopped by patient
-          if (err?.error === 'no-speech' || err?.error === 'aborted') {
-            return;
-          }
           setIsListening(false);
+          if (err?.message) {
+            setMicErrorMsg(err.message);
+          } else if (err?.error === 'not-allowed') {
+            setMicErrorMsg('Microphone access blocked. Please allow mic in browser settings.');
+          } else if (err?.error === 'network') {
+            setMicErrorMsg('Speech recognition network error. Please check internet connection.');
+          } else if (err?.error !== 'no-speech' && err?.error !== 'aborted') {
+            setMicErrorMsg('Microphone input error. Please try again or type answer.');
+          }
         },
         onEnd: () => {
           setIsListening(false);
@@ -1006,15 +1069,12 @@ export default function KioskApp({ onSwitchToDoctor }) {
             {/* Toggle demo vs new */}
             <div className="flex gap-3 mb-6">
               <button
-                onClick={() => {
-                  setIsNewPatient(false);
-                  setRegValidationError('');
-                }}
+                onClick={handleSwitchToDemoTab}
                 className={`flex-1 py-3 font-bold text-sm rounded-xl border-2 transition ${
                   !isNewPatient ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-600'
                 }`}
               >
-                {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : language === 'kn' ? 'ನೋಂದಾಯಿತ ಡೆಮೊ ರೋಗಿಗಳು' : 'Existing Demo Patients'}
+                {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : language === 'kn' ? 'ನೋಂದಾಯಿತ ಡೆಮೊ ರೋಗಿಗಳು' : 'Existing Demo Patients'} ({patients.length})
               </button>
               <button
                 onClick={() => {
@@ -1031,35 +1091,52 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
             {!isNewPatient ? (
               <div className="space-y-3 mb-8">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
-                  {t('demoPatientLabel')}
-                </label>
-                {patients.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => setSelectedPatient(p)}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition flex items-center justify-between ${
-                      selectedPatient?.id === p.id
-                        ? 'border-sky-600 bg-sky-50/50 shadow-sm'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold">
-                        {p.full_name[0]}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900 text-base">{p.full_name}</div>
-                        <div className="text-xs text-slate-500">
-                          {p.age} {language === 'hi' ? 'वर्ष' : language === 'kn' ? 'ವರ್ಷ' : 'Yrs'} • {language === 'kn' ? (p.gender === 'Male' ? 'ಪುರುಷ' : p.gender === 'Female' ? 'ಮಹಿಳೆ' : 'ಇತರ') : language === 'hi' ? (p.gender === 'Male' ? 'पुरुष' : p.gender === 'Female' ? 'महिला' : 'अन्य') : p.gender} • ABHA: <span className="font-mono text-slate-700">{p.abha_id}</span>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                    {t('demoPatientLabel')}
+                  </label>
+                  <span className="text-[11px] text-sky-600 font-semibold">
+                    {patients.length} {patients.length === 1 ? 'Patient' : 'Patients'} Available
+                  </span>
+                </div>
+                {patients.map((p) => {
+                  const isNewlyAdded = p.id && (String(p.id).startsWith('p-') || String(p.id).startsWith('abha_'));
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => setSelectedPatient(p)}
+                      className={`p-4 rounded-2xl border-2 cursor-pointer transition flex items-center justify-between ${
+                        selectedPatient?.id === p.id
+                          ? 'border-sky-600 bg-sky-50/70 shadow-sm ring-1 ring-sky-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shadow-xs shrink-0 ${
+                          selectedPatient?.id === p.id ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {p.full_name ? p.full_name.trim()[0]?.toUpperCase() : 'P'}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-extrabold text-slate-900 text-base">{p.full_name}</span>
+                            {isNewlyAdded && (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                Walk-in Registered
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {p.age} {language === 'hi' ? 'वर्ष' : language === 'kn' ? 'ವರ್ಷ' : 'Yrs'} • {language === 'kn' ? (p.gender === 'Male' ? 'ಪುರುಷ' : p.gender === 'Female' ? 'ಮಹಿಳೆ' : 'ಇತರ') : language === 'hi' ? (p.gender === 'Male' ? 'पुरुष' : p.gender === 'Female' ? 'महिला' : 'अन्य') : p.gender} • ABHA: <span className="font-mono text-slate-700">{p.abha_id || 'Walk-in'}</span>
+                          </div>
                         </div>
                       </div>
+                      {selectedPatient?.id === p.id && (
+                        <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2" />
+                      )}
                     </div>
-                    {selectedPatient?.id === p.id && (
-                      <CheckCircle2 className="w-6 h-6 text-sky-600" />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="space-y-6 mb-8">

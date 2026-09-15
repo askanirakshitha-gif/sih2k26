@@ -38,19 +38,30 @@ export class VoiceProvider {
 export class BrowserSpeechProvider extends VoiceProvider {
   constructor() {
     super();
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    this.recognitionClass = SpeechRecognition || null;
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition || null)
+      : null;
+    this.recognitionClass = SpeechRecognition;
     this.activeRecognition = null;
     this.isListening = false;
   }
 
   isSupported() {
-    return !!this.recognitionClass;
+    if (typeof window === 'undefined') return false;
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
 
-  async startListening({ language = 'en', onResult, onError, onStart, onEnd }) {
-    if (!this.recognitionClass && !navigator.mediaDevices?.getUserMedia) {
-      if (onError) onError(new Error("Browser microphone audio capture is not supported."));
+  startListening({ language = 'en', onResult, onError, onStart, onEnd }) {
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      if (onError) {
+        onError({
+          error: 'not-supported',
+          message: 'Speech recognition is not supported in this browser. Please use Chrome, Edge, or type your response.'
+        });
+      }
       return;
     }
 
@@ -58,79 +69,71 @@ export class BrowserSpeechProvider extends VoiceProvider {
       this.stopListening();
       this.isListening = true;
 
-      // 1. Acoustic Hardware Noise Cancellation Stream (Echo Cancellation & Noise Suppression)
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          this.audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            }
-          });
-        } catch (permissionErr) {
-          // Seamless fallthrough: do NOT block speech recognition if getUserMedia is restricted
-          console.info('[Mic Hardware Stream Fallthrough]', permissionErr);
+      const recognition = new SpeechRecognition();
+      this.activeRecognition = recognition;
+      recognition.continuous = false; // continuous = false guarantees clean onend & instant response
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      // Regional language mapping for Indian OPD Kiosk (English, Hindi, Kannada)
+      recognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+
+      recognition.onstart = () => {
+        this.isListening = true;
+        if (onStart) onStart();
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        let isFinal = false;
+
+        for (let i = 0; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            isFinal = true;
+          }
         }
-      }
 
-      if (this.recognitionClass) {
-        this.activeRecognition = new this.recognitionClass();
-        this.activeRecognition.continuous = true;
-        this.activeRecognition.interimResults = true;
-        this.activeRecognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+        const trimmed = transcript.trim();
+        if (onResult && trimmed) {
+          onResult(trimmed, isFinal);
+        }
+      };
 
-        this.activeRecognition.onstart = () => {
-          this.isListening = true;
-          if (onStart) onStart();
-        };
-
-        this.activeRecognition.onresult = (event) => {
-          let transcript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
-          }
-          if (onResult && transcript) {
-            const isFinal = event.results[event.results.length - 1].isFinal;
-            onResult(transcript, isFinal);
-          }
-        };
-
-        this.activeRecognition.onerror = (event) => {
-          console.warn('[Speech Recognition Error]', event.error);
-          if (event.error === 'no-speech') {
-            // Silence detected, keep listening if active
-            return;
-          }
-          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            this.isListening = false;
-            if (onError) onError({ error: 'not-allowed', message: 'Microphone access is blocked by browser security.' });
-          } else if (onError) {
-            onError(event);
-          }
-        };
-
-        this.activeRecognition.onend = () => {
-          // If still marked as listening, auto-restart (continuous resilience)
-          if (this.isListening && this.activeRecognition) {
-            try {
-              this.activeRecognition.start();
-              return;
-            } catch (e) {
-              // Ignore restart error
-            }
-          }
+      recognition.onerror = (event) => {
+        console.warn('[Speech Recognition Error]', event.error);
+        if (event.error === 'no-speech') {
+          // Normal silence timeout, end cleanly
           this.isListening = false;
           if (onEnd) onEnd();
-        };
+          return;
+        }
 
-        this.activeRecognition.start();
-      } else {
-        if (onStart) onStart();
-      }
+        this.isListening = false;
+        let msg = `Microphone notice: ${event.error}`;
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          msg = 'Microphone access was blocked. Please allow microphone permission in the browser address bar.';
+        } else if (event.error === 'network') {
+          msg = 'Speech recognition network error. Please check your internet connection.';
+        } else if (event.error === 'audio-capture') {
+          msg = 'Microphone hardware is busy or unavailable.';
+        }
+
+        if (onError) onError({ error: event.error, message: msg });
+      };
+
+      recognition.onend = () => {
+        this.isListening = false;
+        this.activeRecognition = null;
+        if (onEnd) onEnd();
+      };
+
+      recognition.start();
     } catch (err) {
+      console.warn('[Speech Recognition Start Exception]', err);
       this.isListening = false;
-      if (onError) onError(err);
+      this.activeRecognition = null;
+      if (onError) onError({ error: 'start-failed', message: err.message || 'Microphone activation failed.' });
     }
   }
 
@@ -138,19 +141,11 @@ export class BrowserSpeechProvider extends VoiceProvider {
     this.isListening = false;
     if (this.activeRecognition) {
       try {
-        this.activeRecognition.stop();
+        this.activeRecognition.abort();
       } catch (e) {
-        // Ignore if already stopped
+        // Ignore abort error
       }
       this.activeRecognition = null;
-    }
-    if (this.audioStream) {
-      try {
-        this.audioStream.getTracks().forEach(track => track.stop());
-      } catch (e) {
-        // Ignore track stop
-      }
-      this.audioStream = null;
     }
   }
 
