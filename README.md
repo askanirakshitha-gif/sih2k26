@@ -82,7 +82,7 @@ Patient responses are organized into a structured summary that can help healthca
 
 The architecture supports integration with India's digital healthcare ecosystem through the **ABHA/ABDM** framework, subject to required APIs and authorization.
 
-### 🏥 EMR/EHR Integration { will be implemented if necessary}
+### 🏥 EMR/EHR Integration { will be implemented LATER..}
 
 The system can be extended to communicate with compatible electronic medical record systems
 
