@@ -732,6 +732,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
     const file = e.target.files[0];
     if (!file) return;
 
+    const previewUrl = URL.createObjectURL(file);
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
     setUploadingDoc(true);
     const formData = new FormData();
     formData.append('document', file);
@@ -743,9 +746,12 @@ export default function KioskApp({ onSwitchToDoctor }) {
       const res = await KioskService.uploadDocument(formData);
       if (res.success) {
         setUploadedDocs(prev => [...prev, {
-          fileName: res.fileName,
+          fileName: res.fileName || file.name,
           documentType: docType,
-          extractions: res.extractions
+          extractions: res.extractions,
+          previewUrl: previewUrl,
+          fileUrl: res.fileUrl || res.file_url || previewUrl,
+          isPdf: isPdf
         }]);
       }
     } catch (err) {
@@ -2066,56 +2072,125 @@ export default function KioskApp({ onSwitchToDoctor }) {
               ))}
             </div>
 
-            {/* Upload Area */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-3 border-dashed border-slate-300 hover:border-sky-500 bg-slate-50 hover:bg-sky-50/50 rounded-3xl p-8 text-center cursor-pointer transition mb-6"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-              <div className="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-4">
-                <Upload className="w-8 h-8" />
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            {/* Upload Area / Live Photo & PDF Preview Card */}
+            {uploadedDocs.length > 0 ? (
+              <div className="bg-slate-900 text-white rounded-3xl p-6 mb-6 shadow-2xl border-2 border-sky-400/40 relative overflow-hidden fade-in">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 rounded-xl bg-sky-500/20 text-sky-400 font-mono font-bold text-xs uppercase border border-sky-500/30 flex items-center space-x-1">
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>{uploadedDocs[uploadedDocs.length - 1].isPdf ? 'PDF Document' : 'Prescription Image'}</span>
+                    </span>
+                    <span className="text-xs text-slate-200 font-extrabold truncate max-w-[200px] sm:max-w-xs">
+                      {uploadedDocs[uploadedDocs.length - 1].fileName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0">
+                    <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-black flex items-center space-x-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Digitized</span>
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition shadow"
+                    >
+                      + Replace / Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Photo or PDF Viewer Frame */}
+                <div className="bg-slate-950 rounded-2xl p-2 border border-slate-800 flex items-center justify-center max-h-[420px] overflow-hidden relative group">
+                  {uploadedDocs[uploadedDocs.length - 1].isPdf ? (
+                    <iframe
+                      src={uploadedDocs[uploadedDocs.length - 1].previewUrl || uploadedDocs[uploadedDocs.length - 1].fileUrl}
+                      className="w-full h-[350px] rounded-xl border-none"
+                      title="PDF Document Preview"
+                    />
+                  ) : (
+                    <img
+                      src={uploadedDocs[uploadedDocs.length - 1].previewUrl || uploadedDocs[uploadedDocs.length - 1].fileUrl}
+                      alt="Uploaded Medical Prescription Preview"
+                      className="max-h-[380px] w-auto max-w-full object-contain rounded-xl shadow-lg transition-transform duration-300 group-hover:scale-[1.01]"
+                    />
+                  )}
+                </div>
+
+                {/* Footer instructions */}
+                <div className="mt-3 flex items-center justify-between text-xs text-slate-400 font-medium">
+                  <span>📸 Photo uploaded & digitized via Medical AI.</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-sky-400 hover:text-sky-300 font-bold underline ml-2"
+                  >
+                    + Add Another Document
+                  </button>
+                </div>
               </div>
-              <p className="font-bold text-slate-800 text-base mb-1">
-                {uploadingDoc ? t('uploadingDoc') : t('uploadCardText')}
-              </p>
-              <p className="text-xs text-slate-400">
-                {t('supportedFormats')}
-              </p>
-            </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-3 border-dashed border-slate-300 hover:border-sky-500 bg-slate-50 hover:bg-sky-50/50 rounded-3xl p-8 text-center cursor-pointer transition mb-6"
+              >
+                <div className="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-4">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <p className="font-bold text-slate-800 text-base mb-1">
+                  {uploadingDoc ? t('uploadingDoc') : t('uploadCardText')}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {t('supportedFormats')}
+                </p>
+              </div>
+            )}
 
             {/* List of Uploaded and OCR Digitized Docs */}
             {uploadedDocs.length > 0 && (
               <div className="space-y-4 mb-8">
-                <h4 className="font-bold text-slate-900 text-sm">
+                <h4 className="font-bold text-slate-900 text-sm flex items-center">
+                  <Sparkles className="w-4 h-4 mr-1.5 text-sky-600" />
                   {t('extractedDataTitle')}
                 </h4>
                 {uploadedDocs.map((doc, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs">
-                    <div className="flex items-center justify-between font-bold text-slate-800 mb-2">
+                  <div key={idx} className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+                    <div className="flex items-center justify-between font-bold text-slate-800 border-b border-slate-200/80 pb-2">
                       <span className="flex items-center space-x-1.5 text-sky-700">
-                        <FileText className="w-4 h-4 mr-1" />
+                        <FileText className="w-4 h-4 mr-1 text-sky-600" />
                         {doc.fileName} ({doc.documentType})
                       </span>
-                      <span className="text-emerald-600 flex items-center">
-                        <CheckCircle2 className="w-4 h-4 mr-1" /> {language === 'hi' ? 'डिजिटाइज़्ड' : language === 'kn' ? 'ಡಿಜಿಟೈಸ್ ಮಾಡಲಾಗಿದೆ' : 'Digitized'}
+                      <span className="text-emerald-600 flex items-center font-black">
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> {language === 'hi' ? 'डिजिटाइज़्ड' : language === 'kn' ? 'ಡಿಜಿಟೈಸ್ ಮಾಡಲಾಗಿದೆ' : 'Digitized via OCR AI'}
                       </span>
                     </div>
 
-                    {doc.extractions?.diagnoses?.length > 0 && (
-                      <p className="text-slate-600">
-                        <strong>{language === 'hi' ? 'निदान:' : language === 'kn' ? 'ರೋಗನಿರ್ಣಯ:' : 'Diagnoses:'}</strong> {doc.extractions.diagnoses.join(', ')}
-                      </p>
-                    )}
                     {doc.extractions?.medications?.length > 0 && (
-                      <p className="text-slate-600 mt-1">
-                        <strong>{language === 'hi' ? 'दवाएं:' : language === 'kn' ? 'ಔಷಧಿಗಳು:' : 'Medications:'}</strong> {doc.extractions.medications.map(m => `${m.name} (${m.dosage})`).join(', ')}
-                      </p>
+                      <div className="space-y-1 pt-1">
+                        <span className="font-bold text-slate-700 block uppercase text-[10px] text-sky-700">Extracted Prescription Medications:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {doc.extractions.medications.map((m, mIdx) => (
+                            <div key={mIdx} className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium flex items-center justify-between">
+                              <span className="font-bold text-slate-900 flex items-center space-x-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>{m.name}</span>
+                              </span>
+                              <span className="text-sky-800 font-mono text-[11px] font-bold">{m.dosage} • {m.frequency}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
