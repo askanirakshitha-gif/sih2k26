@@ -38,7 +38,7 @@ MediKiosk provides a single interface to collect and structure preliminary patie
 * 🩺 **Adaptive clinical questioning**
 * 📋 **Clinical summary generation**
 * 🪪 **ABHA/ABDM integration capability**
-* 🏥 **EMR/EHR integration capability**
+
 
 ### Workflow
 
@@ -82,9 +82,9 @@ Patient responses are organized into a structured summary that can help healthca
 
 The architecture supports integration with India's digital healthcare ecosystem through the **ABHA/ABDM** framework, subject to required APIs and authorization.
 
-### 🏥 EMR/EHR Integration
+### 🏥 EMR/EHR Integration { will be implemented if necessary}
 
-The system can be extended to communicate with compatible electronic medical record systems.
+The system can be extended to communicate with compatible electronic medical record systems
 
 ---
 
@@ -102,7 +102,6 @@ The system can be extended to communicate with compatible electronic medical rec
               ├── OTP
               ├── Voice / Language
               ├── ABDM
-              └── EMR/EHR
 ```
 
 ---
