@@ -1,8 +1,8 @@
 import React from 'react';
-import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX } from 'lucide-react';
+import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX, Stethoscope } from 'lucide-react';
 import { getTranslation } from '../services/i18n';
 
-export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud, activeView, onNavigateView }) {
+export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud, autoVoice, onToggleAutoVoice, activeView, onNavigateView, onOpenDoctorAuth }) {
   const t = (key) => getTranslation(language, key);
 
   return (
@@ -59,6 +59,34 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
         {/* Status Badges & Controls */}
         <div className="flex items-center space-x-3">
           
+          {/* Doctor Workstation Login Button */}
+          {onOpenDoctorAuth && (
+            <button
+              onClick={onOpenDoctorAuth}
+              className="px-3 py-1.5 bg-gradient-to-r from-slate-900 to-sky-950 hover:from-slate-800 hover:to-sky-900 text-white font-extrabold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 border border-sky-400/40"
+              title="Open Doctor Clinical Workstation"
+            >
+              <Stethoscope className="w-4 h-4 text-sky-400 shrink-0" />
+              <span className="hidden sm:inline">{t('doctorPortalBtn') || 'Doctor Workstation'}</span>
+            </button>
+          )}
+          
+          {/* Auto-Voice Narration Toggle for illiterate patients */}
+          {onToggleAutoVoice && (
+            <button
+              onClick={onToggleAutoVoice}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all border ${
+                autoVoice
+                  ? 'bg-teal-50 text-teal-800 border-teal-300 shadow-xs'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
+              }`}
+              title={autoVoice ? t('autoVoiceOn') : t('autoVoiceOff')}
+            >
+              <Volume2 className={`w-4 h-4 ${autoVoice ? 'text-teal-600 animate-bounce' : 'text-slate-400'}`} />
+              <span className="hidden md:inline">{autoVoice ? t('autoVoiceOn') : t('autoVoiceOff')}</span>
+            </button>
+          )}
+
           {/* Audio Page Read-Aloud Button */}
           {onReadPageAloud && (
             <button

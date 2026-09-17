@@ -896,21 +896,28 @@ export const StandaloneMockEngine = {
   registerPatient: (patientData) => {
     const newP = {
       id: `p-${Date.now()}`,
-      abha_id: `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
+      abha_id: patientData.abha_id || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
       full_name: patientData.full_name,
       age: parseInt(patientData.age, 10) || 30,
       gender: patientData.gender || 'Male',
       phone: patientData.phone || '',
-      blood_group: patientData.blood_group || 'O+'
+      blood_group: patientData.blood_group || 'O+',
+      chief_complaint: patientData.chief_complaint || '',
+      past_history: patientData.past_history || '',
+      medications_summary: patientData.medications_summary || '',
+      allergies_summary: patientData.allergies_summary || '',
+      family_history: patientData.family_history || '',
+      personal_history: patientData.personal_history || '',
+      review_of_systems: patientData.review_of_systems || ''
     };
     SEED_PATIENTS.push(newP);
     return { success: true, patient: newP };
   },
 
-  startSession: ({ language = 'en', system = 'ayush', patientId }) => {
+  startSession: ({ language = 'en', system = 'ayush', patientId, opdToken }) => {
     const sessionPatient = SEED_PATIENTS.find(p => p.id === patientId) || SEED_PATIENTS[0];
     const newSessionId = `sess-${Date.now()}`;
-    const token = `OPD-${Math.floor(100 + Math.random() * 900)}`;
+    const token = opdToken || `OPD-${Math.floor(100 + Math.random() * 900)}`;
 
     const newSession = {
       id: newSessionId,
@@ -1073,19 +1080,33 @@ export const StandaloneMockEngine = {
       const chiefAns = answersForSession.find(a => a.clinical_field === 'chief_complaint')?.raw_answer;
       const characterAns = answersForSession.find(a => a.clinical_field === 'character')?.raw_answer;
 
+      const matchedPatient = SEED_PATIENTS.find(p => p.id === session.patient_id) || {};
+      const chiefComplaintVal = chiefAns || matchedPatient.chief_complaint || (
+        session.clinical_system === 'ayush' 
+          ? 'AYUSH Consultation - Ajeerna / Dashavidha Pariksha' 
+          : (session.red_flag_detected ? `Acute Chest Pain (Severity ${severityAns || '8'}/10) - High Severity Risk Triage` : 'Acute Chest Discomfort')
+      );
+
+      const pastHistoryVal = matchedPatient.past_history || answersForSession.find(a => a.clinical_field === 'past_medical_history')?.raw_answer || 'None reported';
+      const medicationsVal = matchedPatient.medications_summary || answersForSession.find(a => a.clinical_field === 'current_medications')?.raw_answer || 'No regular modern medications';
+      const allergiesVal = matchedPatient.allergies_summary || answersForSession.find(a => a.clinical_field === 'allergies')?.raw_answer || 'No known allergies reported';
+      const familyVal = matchedPatient.family_history || 'Negative';
+      const personalVal = matchedPatient.personal_history || 'Sedentary routine, irregular meal timings';
+      const rosVal = matchedPatient.review_of_systems || answersForSession.find(a => a.clinical_field === 'review_of_systems')?.raw_answer || (
+        session.clinical_system === 'ayush' ? 'Positive for digestive fullness. Denies syncope.' : 'Positive for chest heaviness. Evaluated for diaphoresis.'
+      );
+
       localSummaries[sessionId] = {
-        chief_complaint: session.clinical_system === 'ayush' 
-          ? 'Ajeerna / Dashavidha Pariksha OPD' 
-          : (session.red_flag_detected ? `Acute Chest Pain (Severity ${severityAns || '8'}/10) - High Severity Risk Triage` : 'Acute Chest Discomfort'),
+        chief_complaint: chiefComplaintVal,
         hpi_summary: session.clinical_system === 'ayush'
-          ? `Patient attended OPD Kiosk. Completed structured case-taking for AYUSH.`
-          : `Patient presented to OPD Kiosk reporting acute chest discomfort (${chiefAns || 'retrosternal'}). Pain severity rated as ${severityAns || '8'}/10${characterAns ? `, described as ${characterAns}` : ''}.${radiationAns ? ` Radiation noted: ${radiationAns}.` : ''} ${session.red_flag_detected ? 'CRITICAL ALERT: Emergency high severity risk flagged at kiosk. Urgent clinical review and STAT ECG recommended.' : 'Patient hemodynamically stable, standard OPD triage.'}`,
-        past_history: 'None reported',
-        medications_summary: 'None reported',
-        allergies_summary: 'No known allergies reported',
-        family_history: 'Negative',
-        personal_history: 'No high risk habits reported',
-        review_of_systems: 'Completed via kiosk touch interface',
+          ? `Patient attended OPD Kiosk. Completed structured case-taking for AYUSH. Clinical feature analysis indicates: ${chiefComplaintVal} with Vata-Pitta predominance.`
+          : `Patient presented to OPD Kiosk reporting ${chiefComplaintVal}. Pain severity rated as ${severityAns || '8'}/10${characterAns ? `, described as ${characterAns}` : ''}.${radiationAns ? ` Radiation noted: ${radiationAns}.` : ''} ${session.red_flag_detected ? 'CRITICAL ALERT: Emergency high severity risk flagged at kiosk. Urgent clinical review and STAT ECG recommended.' : 'Patient hemodynamically stable, standard OPD triage.'}`,
+        past_history: pastHistoryVal,
+        medications_summary: medicationsVal,
+        allergies_summary: allergiesVal,
+        family_history: familyVal,
+        personal_history: personalVal,
+        review_of_systems: rosVal,
         red_flags_summary: (session.red_flags && session.red_flags.length > 0)
           ? session.red_flags.map(rf => ({
               rule_name: rf.ruleName,
@@ -1208,7 +1229,34 @@ export const StandaloneMockEngine = {
           physician_notes: 'CRITICAL ALERT: Emergency high severity risk flagged at kiosk.'
         };
       } else {
-        summary = localSummaries[initialDemoSessionId];
+        summary = {
+          chief_complaint: patient?.chief_complaint || (
+            session.clinical_system === 'ayush'
+              ? 'AYUSH Consultation - Intake Completed'
+              : 'General OPD Case Intake'
+          ),
+          hpi_summary: `Patient ${patient?.full_name || 'Walk-in'} attended OPD Kiosk. Clinical history and case intake recorded. ${patient?.chief_complaint ? `Chief Complaint: ${patient.chief_complaint}.` : ''}`,
+          past_history: patient?.past_history || 'None reported',
+          medications_summary: patient?.medications_summary || 'No regular modern medications',
+          allergies_summary: patient?.allergies_summary || 'No known allergies reported',
+          family_history: patient?.family_history || 'Negative',
+          personal_history: patient?.personal_history || 'Standard routine',
+          review_of_systems: patient?.review_of_systems || 'Recorded at kiosk',
+          red_flags_summary: [],
+          ayush_assessment: session.clinical_system === 'ayush' ? {
+            prakriti: { body_build: 'Vata-Pitta', skin_hair: 'Normal / Cool', temperature_tolerance: 'Samana' },
+            agni: 'Sama Agni',
+            koshtha: 'Madhyama Koshtha',
+            ahara_shakti: 'Madhyama',
+            rasa_preference: 'Madhura-Amla',
+            vyayama_shakti: 'Madhyama',
+            nidra: 'Samyak (Normal)',
+            sattva: 'Sattva',
+            vihara: 'Active',
+            vaya: 'Madhyama (Adult)'
+          } : null,
+          physician_notes: ''
+        };
       }
     }
     const review = localReviews[session.id] || null;

@@ -53,14 +53,15 @@ export const KioskService = {
     }
   },
 
-  startSession: async ({ language, system, patientId, conditionId }) => {
+  startSession: async ({ language, system, patientId, conditionId, opdToken }) => {
     const payload = {
       language: language || 'en',
       system: system || 'allopathy',
       mode: (system || '').toUpperCase() === 'AYUSH' ? 'AYUSH' : 'ALLOPATHIC',
       patientId: patientId || null,
       patient_identifier: patientId || null,
-      conditionId: conditionId || null
+      conditionId: conditionId || null,
+      opdToken: opdToken || null
     };
 
     try {
@@ -74,7 +75,7 @@ export const KioskService = {
       return res.data;
     } catch (err) {
       console.warn('[MediKiosk API] Session init unavailable, using local mock engine:', err?.message);
-      return StandaloneMockEngine.startSession({ language, system, patientId, conditionId });
+      return StandaloneMockEngine.startSession({ language, system, patientId, conditionId, opdToken });
     }
   },
 
@@ -218,6 +219,16 @@ export const DoctorService = {
     } catch (err) {
       console.warn('[MediKiosk API] ABDM push unavailable, using local mock engine:', err?.message);
       return StandaloneMockEngine.pushToAbdm(pushData);
+    }
+  },
+
+  verifyDoctorPin: async (pin, staffId = 'DOC-AIIMS-108') => {
+    try {
+      const res = await api.post('/doctor/auth', { pin, staff_id: staffId });
+      return res.data;
+    } catch (err) {
+      console.warn('[MediKiosk API] /doctor/auth endpoint check fallback:', err?.message);
+      return StandaloneMockEngine.verifyDoctorPin(pin, staffId);
     }
   }
 };

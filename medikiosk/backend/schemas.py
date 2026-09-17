@@ -34,6 +34,13 @@ class PatientCreate(BaseModel):
     phone: Optional[str] = None
     abha_id: Optional[str] = None
     blood_group: Optional[str] = None
+    chief_complaint: Optional[str] = None
+    past_history: Optional[str] = None
+    medications_summary: Optional[str] = None
+    allergies_summary: Optional[str] = None
+    family_history: Optional[str] = None
+    personal_history: Optional[str] = None
+    review_of_systems: Optional[str] = None
 
 class Patient(BaseModel):
     id: str
@@ -43,6 +50,13 @@ class Patient(BaseModel):
     phone: Optional[str] = None
     abha_id: Optional[str] = None
     blood_group: Optional[str] = None
+    chief_complaint: Optional[str] = None
+    past_history: Optional[str] = None
+    medications_summary: Optional[str] = None
+    allergies_summary: Optional[str] = None
+    family_history: Optional[str] = None
+    personal_history: Optional[str] = None
+    review_of_systems: Optional[str] = None
 
 class SessionInitRequest(BaseModel):
     patient_identifier: Optional[str] = None

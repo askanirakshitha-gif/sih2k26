@@ -201,7 +201,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(distance * 10) / 10;
 }
 
-export default function HospitalGpsTracker({ language = 'en', onSelectHospital, onStartKiosk }) {
+export default function HospitalGpsTracker({ language = 'en', onSelectHospital, onStartKiosk, onSwitchToDoctor }) {
   // User GPS Coordinates State (Default: Bengaluru City Center)
   const [userLocation, setUserLocation] = useState({ lat: 12.9716, lng: 77.5946 });
   const [isLocating, setIsLocating] = useState(false);
@@ -302,7 +302,6 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
             AI-Powered Clinical History & Pre-Consultation Platform. Capture your medical history, digitize existing health records, and prepare a clinician-ready history before consultation.
           </p>
 
-          {/* Patient Login / Start Button */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
             <button
               onClick={() => {

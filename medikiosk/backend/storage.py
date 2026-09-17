@@ -156,7 +156,14 @@ class InMemoryOPDStore:
             "age": int(data.get("age", 35)),
             "gender": data.get("gender", "Male"),
             "phone": data.get("phone", ""),
-            "blood_group": data.get("blood_group", "O+")
+            "blood_group": data.get("blood_group", "O+"),
+            "chief_complaint": data.get("chief_complaint", ""),
+            "past_history": data.get("past_history", ""),
+            "medications_summary": data.get("medications_summary", ""),
+            "allergies_summary": data.get("allergies_summary", ""),
+            "family_history": data.get("family_history", ""),
+            "personal_history": data.get("personal_history", ""),
+            "review_of_systems": data.get("review_of_systems", "")
         }
         self.patients.append(new_p)
         return new_p
@@ -206,7 +213,26 @@ class InMemoryOPDStore:
         self.summaries[session_id] = summary
 
     def get_summary(self, session_id: str) -> Dict[str, Any]:
-        return self.summaries.get(session_id, self.summaries.get(INITIAL_DEMO_SESSION_ID, {}))
+        if session_id in self.summaries:
+            return self.summaries[session_id]
+        
+        session = self.get_session(session_id)
+        if session:
+            patient = self.get_patient_by_id(session.get("patient_id"))
+            if patient:
+                return {
+                    "chief_complaint": patient.get("chief_complaint") or ("AYUSH Case Intake" if session.get("clinical_system") == "ayush" else "General OPD Consultation"),
+                    "hpi_summary": f"Patient {patient.get('full_name')} attended OPD Kiosk. Demographics and clinical history intake recorded at kiosk.",
+                    "past_history": patient.get("past_history") or "None reported",
+                    "medications_summary": patient.get("medications_summary") or "No regular modern medications",
+                    "allergies_summary": patient.get("allergies_summary") or "No known allergies reported",
+                    "family_history": patient.get("family_history") or "Negative",
+                    "personal_history": patient.get("personal_history") or "Standard routine",
+                    "review_of_systems": patient.get("review_of_systems") or "Recorded at kiosk",
+                    "red_flags_summary": [],
+                    "physician_notes": ""
+                }
+        return self.summaries.get(INITIAL_DEMO_SESSION_ID, {})
 
     def add_document(self, doc_data: Dict[str, Any]):
         self.documents.append(doc_data)

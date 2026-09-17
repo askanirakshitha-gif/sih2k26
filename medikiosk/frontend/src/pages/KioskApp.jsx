@@ -7,18 +7,21 @@ import {
   Pill, Hospital, Activity, Printer, Download
 } from 'lucide-react';
 import { KioskService } from '../services/api';
-import { defaultVoiceProvider } from '../services/voiceProvider';
+import { defaultVoiceProvider, playAudioChime } from '../services/voiceProvider';
 import { getTranslation } from '../services/i18n';
 import KioskNavbar from '../components/KioskNavbar';
 import VoiceWaveform from '../components/VoiceWaveform';
+import VoiceInputField from '../components/VoiceInputField';
 import RedFlagModal from '../components/RedFlagModal';
 import HospitalGpsTracker from '../components/HospitalGpsTracker';
+import DoctorAuthModal from '../components/DoctorAuthModal';
 import { dispatchEmergencyAlert } from '../services/alertSync';
 
 export default function KioskApp({ onSwitchToDoctor }) {
   // Navigation Views: 'HOSPITALS' (Landing & GPS Tracker) | 'INTAKE' (Clinical History Kiosk)
   const [activeView, setActiveView] = useState('HOSPITALS');
   const [selectedHospital, setSelectedHospital] = useState(null);
+  const [isDoctorAuthOpen, setIsDoctorAuthOpen] = useState(false);
   // Navigation Steps: 'LANG' | 'SYSTEM' | 'PATIENT' | 'CONSENT' | 'QUESTIONS' | 'DOCS' | 'DONE'
   const [step, setStep] = useState('LANG');
   const [language, setLanguage] = useState('en');
@@ -28,6 +31,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
+  const [autoVoice, setAutoVoice] = useState(true); // Auto-voice narration for illiterate patients
   const [newPatientForm, setNewPatientForm] = useState({
     full_name: '',
     age: '',
@@ -35,7 +39,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
     phone: '',
     blood_group: 'B+',
     abha_id: '',
-    emergency_contact: ''
+    emergency_contact: '',
+    chief_complaint: '',
+    past_history: '',
+    medications_summary: '',
+    allergies_summary: '',
+    family_history: '',
+    personal_history: '',
+    review_of_systems: ''
   });
 
   // Walk-in Registration Options: 'abha' | 'phone' | 'manual'
@@ -64,6 +75,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
   // Consent
   const [consentChecked, setConsentChecked] = useState(false);
+  const [manualOpdToken, setManualOpdToken] = useState('');
 
   // Session & Question State
   const [sessionId, setSessionId] = useState(null);
@@ -119,14 +131,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
   // Page Audio Read-Aloud State & Controls
   const [isSpeakingPage, setIsSpeakingPage] = useState(false);
 
-  // Auto-trigger audio read-aloud when arriving at CONSENT step or changing language on CONSENT step
+  // Auto-trigger audio read-aloud when arriving at any step or question if autoVoice is enabled
   useEffect(() => {
     defaultVoiceProvider.cancelSpeech();
     setIsSpeakingPage(false);
 
-    if (step === 'CONSENT') {
+    if (autoVoice && step !== 'LANG') {
       const timer = setTimeout(() => {
-        const textToRead = getPageAuditableText('CONSENT');
+        const textToRead = getPageAuditableText(step);
         if (textToRead) {
           setIsSpeakingPage(true);
           defaultVoiceProvider.speak(textToRead, {
@@ -135,13 +147,13 @@ export default function KioskApp({ onSwitchToDoctor }) {
             onError: () => setIsSpeakingPage(false)
           });
         }
-      }, 300);
+      }, 400);
       return () => {
         clearTimeout(timer);
         defaultVoiceProvider.cancelSpeech();
       };
     }
-  }, [step, language]);
+  }, [step, language, autoVoice, isNewPatient]);
 
   const getPageAuditableText = (targetStep) => {
     const lang = language;
@@ -155,14 +167,22 @@ export default function KioskApp({ onSwitchToDoctor }) {
       return `${getTranslation(lang, 'selectSystemTitle')}. ${getTranslation(lang, 'selectSystemSubtitle')}. ${getTranslation(lang, 'allopathyTitle')}: ${getTranslation(lang, 'allopathyDesc')}. ${getTranslation(lang, 'ayushTitle')}: ${getTranslation(lang, 'ayushDesc')}`;
     }
     if (targetStep === 'PATIENT') {
+      if (isNewPatient) {
+        return lang === 'hi'
+          ? "नया मरीज पंजीकरण। कृपया अपना नाम, उम्र, मोबाइल नंबर, और अपनी मुख्य बीमारी, पुरानी दवाइयां एवं एलर्जी का विवरण भरें। आप बोलकर भी बता सकते हैं।"
+          : lang === 'kn'
+          ? "ಹೊಸ ರೋಗಿ ನೋಂದಣಿ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು, ವಯಸ್ಸು, ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಮತ್ತು ರೋಗ ಲಕ್ಷಣಗಳ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ ತಿಳಿಸಿ."
+          : "New patient registration. Please enter your name, age, phone number, chief complaint, past medical history, current medications, and allergies. You can type, tap chips, or tap the microphone to speak.";
+      }
       return lang === 'hi'
-        ? "मरीज पहचान। आभा आईडी खोजें, या मोबाइल नंबर पर एसएमएस ओटीपी प्राप्त करके सत्यापित करें।"
+        ? "मरीज पहचान। सूची से पंजीकृत मरीज चुनें या नया पंजीकरण करने के लिए 'नया मरीज पंजीकरण' पर स्पर्श करें।"
         : lang === 'kn'
-        ? "ರೋಗಿಯ ಗುರುತು. ABHA ID ಯನ್ನು ಹುಡುಕಿ ಅಥವಾ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಗೆ SMS OTP ಪಡೆಯುವ ಮೂಲಕ ಪರಿಶೀಲಿಸಿ."
-        : "Patient Identification screen. Search ABHA ID record or request SMS OTP verification to link mobile number.";
+        ? "ರೋಗಿಯ ಗುರುತು. ಪಟ್ಟಿಯಿಂದ ರೋಗಿಯನ್ನು ಆರಿಸಿ ಅಥವಾ ಹೊಸ ರೋಗಿ ನೋಂದಣಿ ಬಟನ್ ಒತ್ತಿ."
+        : "Patient Identification screen. Choose a registered patient from the list or tap 'New Walk-in Patient' to register.";
     }
     if (targetStep === 'QUESTIONS' && currentQuestion) {
-      return currentQuestion.text;
+      const qOptionsText = (currentQuestion.options || []).map(o => o.text).join('. ');
+      return `${currentQuestion.text}. ${qOptionsText ? 'Options: ' + qOptionsText : ''}`;
     }
     if (targetStep === 'DOCS') {
       return lang === 'hi'
@@ -434,7 +454,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
       age: parseInt(dataToSave.age, 10) || 30,
       gender: dataToSave.gender || 'Male',
       phone: dataToSave.phone || phoneInput || '',
-      blood_group: dataToSave.blood_group || 'O+'
+      blood_group: dataToSave.blood_group || 'O+',
+      chief_complaint: dataToSave.chief_complaint || '',
+      past_history: dataToSave.past_history || '',
+      medications_summary: dataToSave.medications_summary || '',
+      allergies_summary: dataToSave.allergies_summary || '',
+      family_history: dataToSave.family_history || '',
+      personal_history: dataToSave.personal_history || '',
+      review_of_systems: dataToSave.review_of_systems || ''
     };
     setSelectedPatient(localPatient);
     setPatients(prev => [localPatient, ...prev.filter(p => p.id !== localPatient.id)]);
@@ -548,7 +575,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
         system,
         patientId: finalPatientId,
         conditionId: system === 'ayush' ? 'ayush_general' : 'chest_pain',
-        hospitalName: selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru'
+        hospitalName: selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru',
+        opdToken: manualOpdToken.trim() !== '' ? manualOpdToken.trim() : null
       });
 
       if (res.success) {
@@ -839,6 +867,17 @@ export default function KioskApp({ onSwitchToDoctor }) {
         onReadPageAloud={handleReadPageAloud}
         activeView={activeView}
         onNavigateView={(v) => setActiveView(v)}
+        onOpenDoctorAuth={() => setIsDoctorAuthOpen(true)}
+      />
+
+      {/* Doctor Authentication PIN Modal */}
+      <DoctorAuthModal
+        isOpen={isDoctorAuthOpen}
+        onClose={() => setIsDoctorAuthOpen(false)}
+        onSuccess={() => {
+          setIsDoctorAuthOpen(false);
+          if (onSwitchToDoctor) onSwitchToDoctor();
+        }}
       />
 
       {/* Red Flag Emergency Alert Modal */}
@@ -887,6 +926,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
             setActiveView('INTAKE');
             setStep('LANG');
           }}
+          onSwitchToDoctor={onSwitchToDoctor}
         />
       ) : (
         <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">
@@ -1676,6 +1716,172 @@ export default function KioskApp({ onSwitchToDoctor }) {
                     </div>
                   </div>
                 )}
+
+                {/* Clinical History & Case Intake Section (Voice Narrated & Tap-to-Speak Enabled) */}
+                <div className="bg-sky-50/70 border-2 border-sky-200 rounded-3xl p-6 space-y-6 mt-6 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200 pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Stethoscope className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-base flex items-center">
+                          <span>{t('clinicalIntakeTitle') || 'Clinical History & Case Intake'}</span>
+                          <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md uppercase">
+                            {language === 'hi' ? 'बोलकर भरें (Voice Enabled)' : language === 'kn' ? 'ಧ್ವನಿ ಬೆಂಬಲ' : 'Tap to Speak'}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          {t('clinicalIntakeSubtitle') || 'Please speak or select your symptoms and health history for the doctor workstation.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Read All Intake Fields Aloud Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fullPrompt = `${t('clinicalIntakeTitle') || 'Clinical History & Case Intake'}. ${t('clinicalIntakeSubtitle') || 'Please speak or select your symptoms and health history.'}`;
+                        defaultVoiceProvider.speak(fullPrompt, { language });
+                      }}
+                      className="px-3 py-1.5 bg-white hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shrink-0 shadow-2xs"
+                    >
+                      <Volume2 className="w-4 h-4 text-sky-600" />
+                      <span>{language === 'hi' ? 'सभी प्रश्न सुनें' : language === 'kn' ? 'ಎಲ್ಲವನ್ನೂ ಆಲಿಸಿ' : 'Listen All Prompts'}</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5">
+                    {/* 1. Chief Complaint */}
+                    <VoiceInputField
+                      id="chief_complaint"
+                      label={t('chiefComplaintLabel') || 'Chief Complaint / Main Symptom'}
+                      subtitle={t('chiefComplaintSubtitle') || 'What brings you to the hospital today?'}
+                      value={newPatientForm.chief_complaint}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, chief_complaint: val }))}
+                      placeholder={language === 'hi' ? 'उदा: पिछले 3 दिनों से बुखार और छाती में दर्द' : language === 'kn' ? 'ಉದಾ: ಕಳೆದ 3 ದಿನಗಳಿಂದ ಜ್ವರ ಮತ್ತು ಎದೆ ನೋವು' : 'e.g. Fever & chest pain for 3 days'}
+                      language={language}
+                      rows={2}
+                      type="textarea"
+                      chips={[
+                        { label: 'Fever', value: 'Fever (बुखार / ಜ್ವರ)', text_hi: 'बुखार', text_kn: 'ಜ್ವರ' },
+                        { label: 'Cough & Cold', value: 'Cough & Cold (खांसी और जुकाम)', text_hi: 'खांसी व जुकाम', text_kn: 'ಕೆಮ್ಮು ಮತ್ತು ಶೀತ' },
+                        { label: 'Chest Pain', value: 'Chest Pain (छाती में दर्द)', text_hi: 'छाती में दर्द', text_kn: 'ಎದೆ ನೋವು' },
+                        { label: 'Abdominal Pain', value: 'Abdominal Pain (पेट दर्द)', text_hi: 'पेट दर्द', text_kn: 'ಹೊಟ್ಟೆ ನೋವು' },
+                        { label: 'Joint Pain', value: 'Joint Pain (जोड़ों का दर्द)', text_hi: 'जोड़ों का दर्द', text_kn: 'ಸಂಧಿವಾತ' },
+                        { label: 'Headache', value: 'Headache (सिरदर्द)', text_hi: 'सिरदर्द', text_kn: 'ತಲೆನೋವು' },
+                        { label: 'Skin Rash', value: 'Skin Rash (त्वचा पर चकत्ते)', text_hi: 'त्वचा पर चकत्ते', text_kn: 'ಚರ್ಮದ ದದ್ದು' }
+                      ]}
+                    />
+
+                    {/* 2. Past Medical History */}
+                    <VoiceInputField
+                      id="past_history"
+                      label={t('pastHistoryLabel') || 'Past Medical History (पूर्व चिकित्सीय इतिहास)'}
+                      subtitle={t('pastHistorySubtitle') || 'Any existing conditions like Diabetes, BP, or Thyroid?'}
+                      value={newPatientForm.past_history}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, past_history: val }))}
+                      placeholder={language === 'hi' ? 'उदा: मधुमेह 5 साल से' : language === 'kn' ? 'ಉದಾ: ಮಧುಮೇಹ' : 'e.g. Diabetes for 5 years, Hypertension'}
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Diabetes', value: 'Diabetes (मधुमेह)', text_hi: 'मधुमेह (Sugar)', text_kn: 'ಮಧುಮೇಹ' },
+                        { label: 'Hypertension (BP)', value: 'Hypertension (उच्च रक्तचाप)', text_hi: 'हाई बीपी', text_kn: 'ಅಧಿಕ ರಕ್ತದೊತ್ತಡ' },
+                        { label: 'Asthma', value: 'Asthma (अस्थमा)', text_hi: 'अस्थमा / दमा', text_kn: 'ಉಬ್ಬಸ' },
+                        { label: 'Thyroid', value: 'Thyroid Disorder', text_hi: 'थायराइड', text_kn: 'ಥೈರಾಯ್ಡ್' },
+                        { label: 'None', value: 'None (कोई बीमारी नहीं)', text_hi: 'कोई बीमारी नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                      ]}
+                    />
+
+                    {/* 3. Current Medications */}
+                    <VoiceInputField
+                      id="medications_summary"
+                      label={t('medicationsLabel') || 'Current Medications (वर्तमान दवाएं)'}
+                      subtitle={t('medicationsSubtitle') || 'Medicines, tablets, or herbal churna currently taken daily'}
+                      value={newPatientForm.medications_summary}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, medications_summary: val }))}
+                      placeholder={language === 'hi' ? 'उदा: पैरासिटामोल, मेटफॉर्मिन' : language === 'kn' ? 'ಉದಾ: ಪ್ಯಾರಸಿಟಮಾಲ್' : 'e.g. Paracetamol 500mg, Metformin 500mg'}
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Paracetamol', value: 'Paracetamol 500mg', text_hi: 'पैरासिटामोल', text_kn: 'ಪ್ಯಾರಸಿಟಮಾಲ್' },
+                        { label: 'Metformin', value: 'Metformin 500mg', text_hi: 'मेटफॉर्मिन', text_kn: 'ಮೆಟ್‌ಫಾರ್ಮಿನ್' },
+                        { label: 'Amlodipine', value: 'Amlodipine (BP)', text_hi: 'एमलोडिपिन', text_kn: 'ಆಮ್ಲೋಡಿಪಿನ್' },
+                        { label: 'Ayurvedic Churna', value: 'Ayurvedic Churna', text_hi: 'आयुर्वेदिक चूर्ण', text_kn: 'ಆಯುರ್ವೇದ ಚೂರ್ಣ' },
+                        { label: 'None', value: 'None (कोई दवा नहीं)', text_hi: 'कोई दवा नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                      ]}
+                    />
+
+                    {/* 4. Allergies */}
+                    <VoiceInputField
+                      id="allergies_summary"
+                      label={t('allergiesLabel') || 'Allergy History (अलर्जी इतिहास)'}
+                      subtitle={t('allergiesSubtitle') || 'Known drug, food, or environmental allergies'}
+                      value={newPatientForm.allergies_summary}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, allergies_summary: val }))}
+                      placeholder={language === 'hi' ? 'उदा: पेनिसिलिन या धूल की एलर्जी' : language === 'kn' ? 'ಉದಾ: ಪೆನಿಸಿಲಿನ್ ಅಲರ್ಜಿ' : 'e.g. Penicillin allergy, Dust allergy'}
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Penicillin', value: 'Penicillin Allergy', text_hi: 'पेनिसिलिन', text_kn: 'ಪೆನಿಸಿಲಿನ್ ಅಲರ್ಜಿ' },
+                        { label: 'Dust / Pollen', value: 'Dust Allergy', text_hi: 'धूल से एलर्जी', text_kn: 'ಧೂಳಿನ ಅಲರ್ಜಿ' },
+                        { label: 'Food Allergy', value: 'Food Allergy', text_hi: 'भोजन की एलर्जी', text_kn: 'ಆಹಾರ ಅಲರ್ಜಿ' },
+                        { label: 'None', value: 'No Known Allergies', text_hi: 'कोई एलर्जी नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                      ]}
+                    />
+
+                    {/* 5. Family & Personal History */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <VoiceInputField
+                        id="family_history"
+                        label={t('familyHistoryLabel') || 'Family History (पारिवारिक इतिहास)'}
+                        subtitle="Major health issues in parents or siblings"
+                        value={newPatientForm.family_history}
+                        onChange={(val) => setNewPatientForm(prev => ({ ...prev, family_history: val }))}
+                        placeholder="e.g. Heart disease in father"
+                        language={language}
+                        type="text"
+                        chips={[
+                          { label: 'Diabetes in Family', value: 'Family Diabetes', text_hi: 'परिवार में शुगर', text_kn: 'ಕುಟುಂಬದಲ್ಲಿ ಮಧುಮೇಹ' },
+                          { label: 'Heart Disease', value: 'Family Heart Disease', text_hi: 'हृदय रोग', text_kn: 'ಹೃದಯ ರೋಗ' },
+                          { label: 'None', value: 'Negative', text_hi: 'कोई समस्या नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                        ]}
+                      />
+                      <VoiceInputField
+                        id="personal_history"
+                        label={t('personalHistoryLabel') || 'Personal Habits (व्यक्तिगत आदतें)'}
+                        subtitle="Diet, smoking, physical activity"
+                        value={newPatientForm.personal_history}
+                        onChange={(val) => setNewPatientForm(prev => ({ ...prev, personal_history: val }))}
+                        placeholder="e.g. Vegetarian, Non-smoker"
+                        language={language}
+                        type="text"
+                        chips={[
+                          { label: 'Vegetarian', value: 'Vegetarian', text_hi: 'शाकाहारी', text_kn: 'ಸಸ್ಯಾಹಾರಿ' },
+                          { label: 'Tobacco / Smoking', value: 'Tobacco User', text_hi: 'तंबाकू / धूम्रपान', text_kn: 'ತंबಾಕು' },
+                          { label: 'Non-Smoker', value: 'Non-Smoker', text_hi: 'धूम्रपान नहीं करते', text_kn: 'ಧೂಮಪಾನವಿಲ್ಲ' }
+                        ]}
+                      />
+                    </div>
+
+                    {/* 6. Review of Systems */}
+                    <VoiceInputField
+                      id="review_of_systems"
+                      label={t('rosLabel') || 'Review of Systems (शारीरिक प्रणालियों की समीक्षा)'}
+                      subtitle="Associated complaints like weakness, indigestion, or shortness of breath"
+                      value={newPatientForm.review_of_systems}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, review_of_systems: val }))}
+                      placeholder="e.g. Indigestion and occasional dizziness"
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Normal / All Healthy', value: 'All Systems Normal', text_hi: 'सब सामान्य है', text_kn: 'ಎಲ್ಲವೂ ಸಾಮಾನ್ಯವಾಗಿದೆ' },
+                        { label: 'Fatigue / Weakness', value: 'Fatigue & Weakness', text_hi: 'थकान व कमजोरी', text_kn: 'ಆಯಾಸ' },
+                        { label: 'Digestive Issues', value: 'Indigestion & Acidity', text_hi: 'पाचन की समस्या', text_kn: 'ಅಜೀರ್ಣ' }
+                      ]}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1783,6 +1989,21 @@ export default function KioskApp({ onSwitchToDoctor }) {
                 <span className="mr-2 text-sky-600 font-bold">•</span>
                 <span>{t('consentText3')}</span>
               </p>
+            </div>
+
+            {/* Optional Manual OPD Token Input */}
+            <div className="mb-8">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                OPD Token Number / Registration ID (Optional)
+              </label>
+              <input
+                type="text"
+                value={manualOpdToken}
+                onChange={(e) => setManualOpdToken(e.target.value)}
+                placeholder="e.g. OPD-105 (Leave blank to auto-generate)"
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono transition shadow-sm"
+              />
+              <p className="text-xs text-slate-500 mt-1.5 ml-1">If the hospital generated an OPD token for you at the counter, enter it here. Otherwise, we will generate one.</p>
             </div>
 
             <label className="flex items-center space-x-3 p-4 bg-sky-50/70 border border-sky-200 rounded-2xl cursor-pointer mb-8">
@@ -2486,17 +2707,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
                   setActiveRedFlags([]);
                   setSummaryReportData(null);
                 }}
-                className="py-4 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition"
+                className="py-4 px-6 bg-sky-600 hover:bg-sky-700 text-white shadow-lg font-bold rounded-2xl transition"
               >
                 {t('startNewSession')}
-              </button>
-
-              <button
-                onClick={onSwitchToDoctor}
-                className="py-4 px-6 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-lg transition flex items-center justify-center space-x-2"
-              >
-                <Stethoscope className="w-5 h-5" />
-                <span>{t('doctorPortalBtn')}</span>
               </button>
             </div>
           </div>
@@ -2504,17 +2717,6 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
       </main>
       )}
-
-      {/* Persistent Bottom Bar to Switch to Doctor Dashboard */}
-      <footer className="bg-white border-t border-slate-200 py-3 px-4 text-center">
-        <button
-          onClick={onSwitchToDoctor}
-          className="inline-flex items-center space-x-2 text-xs font-bold text-sky-700 hover:text-sky-900 px-4 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 transition"
-        >
-          <Stethoscope className="w-4 h-4" />
-          <span>{language === 'hi' ? 'डॉक्टर ओपीडी वर्कस्टेशन पर जाएं (केस रिकॉर्ड और FHIR देखें)' : language === 'kn' ? 'ವೈದ್ಯರ OPD ವರ್ಕ್‌ಸ್ಟೇಷನ್‌ಗೆ ಬದಲಾಯಿಸಿ (ಕೇಸ್ ದಾಖಲೆಗಳು ಮತ್ತು FHIR ವೀಕ್ಷಿಸಿ)' : 'Switch to Doctor OPD Workstation (View Case Records & FHIR)'}</span>
-        </button>
-      </footer>
 
     </div>
   );

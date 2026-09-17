@@ -341,6 +341,15 @@ async def process_turn(req: SessionTurnRequest):
         all_answers = store.get_answers_for_session(session_id)
         answers_map = {a.get("clinical_field", a.get("question_id")): a.get("raw_answer") for a in all_answers}
 
+        pt = next((p for p in store.patients if p.get("id") == session.get("patient_id")), {})
+        pt_chief = pt.get("chief_complaint")
+        pt_past = pt.get("past_history") or answers_map.get("past_medical_history") or answers_map.get("past_history")
+        pt_meds = pt.get("medications_summary") or answers_map.get("current_medications")
+        pt_allergies = pt.get("allergies_summary") or answers_map.get("allergies")
+        pt_family = pt.get("family_history")
+        pt_personal = pt.get("personal_history")
+        pt_ros = pt.get("review_of_systems") or answers_map.get("review_of_systems")
+
         if clinical_sys == "ayush":
             predicted_dis = top_pred.get("disease", "Ajeerna (Digestive Dysfunction)")
             herbs_list = [h.strip() for h in top_pred.get("ayurvedic_herbs", "Triphala, Shunthi, Haritaki").split(",")]
@@ -367,14 +376,14 @@ async def process_turn(req: SessionTurnRequest):
             ]
 
             summary = {
-                "chief_complaint": f"AYUSH Consultation - {predicted_dis}",
-                "hpi_summary": f"Patient completed standardized AIIA SACTP case-taking. Clinical feature analysis indicates: {predicted_dis} with {top_pred.get('doshas', 'Vata-Pitta')} predominance.",
-                "past_history": "Digestive irregularities, mild stress",
-                "medications_summary": "No regular modern medications",
-                "allergies_summary": "No known allergies reported",
-                "family_history": "Negative",
-                "personal_history": "Sedentary routine, irregular meal timings",
-                "review_of_systems": "Positive for digestive fullness. Denies syncope.",
+                "chief_complaint": f"AYUSH Consultation - {pt_chief or predicted_dis}",
+                "hpi_summary": f"Patient completed standardized AIIA SACTP case-taking. Clinical feature analysis indicates: {pt_chief or predicted_dis} with {top_pred.get('doshas', 'Vata-Pitta')} predominance.",
+                "past_history": pt_past or "Digestive irregularities, mild stress",
+                "medications_summary": pt_meds or "No regular modern medications",
+                "allergies_summary": pt_allergies or "No known allergies reported",
+                "family_history": pt_family or "Negative",
+                "personal_history": pt_personal or "Sedentary routine, irregular meal timings",
+                "review_of_systems": pt_ros or "Positive for digestive fullness. Denies syncope.",
                 "triage_status": "ROUTINE AYUSH OPD",
                 "ayush_assessment": {
                     "prakriti": { "body_build": top_pred.get("prakriti", "Vata-Pitta"), "temperament": "Rajas-Sattva" },
@@ -430,14 +439,14 @@ async def process_turn(req: SessionTurnRequest):
             ]
 
             summary = {
-                "chief_complaint": answers_map.get("chief_complaint", "Acute Retrosternal Chest Discomfort"),
-                "hpi_summary": "Patient presented with acute retrosternal chest pain evaluated via structured SOCRATES protocol.",
-                "past_history": "Essential Hypertension, Dyslipidemia",
-                "medications_summary": "Telmisartan 40mg OD, Atorvastatin 20mg OD",
-                "allergies_summary": "No known drug allergies reported",
-                "family_history": "Paternal CAD",
-                "personal_history": "Non-smoker",
-                "review_of_systems": "Positive for chest heaviness. Evaluated for diaphoresis.",
+                "chief_complaint": answers_map.get("chief_complaint") or pt_chief or "Acute Retrosternal Chest Discomfort",
+                "hpi_summary": f"Patient presented with {answers_map.get('chief_complaint') or pt_chief or 'acute chest discomfort'} evaluated via structured SOCRATES protocol.",
+                "past_history": pt_past or "Essential Hypertension, Dyslipidemia",
+                "medications_summary": pt_meds or "Telmisartan 40mg OD, Atorvastatin 20mg OD",
+                "allergies_summary": pt_allergies or "No known drug allergies reported",
+                "family_history": pt_family or "Paternal CAD",
+                "personal_history": pt_personal or "Non-smoker",
+                "review_of_systems": pt_ros or "Positive for chest heaviness. Evaluated for diaphoresis.",
                 "triage_status": "STAT EMERGENCY ER" if is_red else "PRIORITY CARDIOLOGY OPD",
                 "red_flags_summary": [
                     {"rule_name": rf.ruleName, "severity": rf.severity, "warning": rf.message}
