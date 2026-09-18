@@ -185,7 +185,9 @@ async def init_session(req: SessionInitRequest):
         patient=patient,
         language=language,
         clinical_system=clinical_sys,
-        condition_id="ayush_general" if clinical_sys == "ayush" else "chest_pain"
+        condition_id="ayush_general" if clinical_sys == "ayush" else "chest_pain",
+        hospital_name=hosp_name,
+        hospital_id=req.hospitalId
     )
     session["hospital_name"] = hosp_name
 
@@ -766,6 +768,24 @@ async def push_to_abdm(push_data: AbdmPushRequest):
 
     tx_id = f"ABDM-HIP-TX-{uuid.uuid4().hex[:8].upper()}-{uuid.uuid4().int % 10000:04d}"
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    payload = {
+        "resourceType": "Bundle",
+        "entriesCount": 6,
+        "resources": ["Composition", "Patient", "Encounter", "Condition", "Observation", "Practitioner"],
+        "profile": "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle",
+        "double_coding": "NAMASTE & WHO ICD-11 TM2 + WHO ICD-11 MMS",
+        "sessionId": session_id,
+        "timestamp": now_iso
+    }
+    store._save_abdm_record(
+        patient_id=str(patient.get("id")),
+        session_id=session_id,
+        abha_id=push_data.abhaId or patient.get("abha_id", "91-2345-6789-0123"),
+        transaction_id=tx_id,
+        hip_id="IN08100001-DISTRICT-CIVIL-HOSP",
+        payload=payload,
+        status="success"
+    )
 
     return AbdmPushResponse(
         success=True,
@@ -774,13 +794,7 @@ async def push_to_abdm(push_data: AbdmPushRequest):
         hipId="IN08100001-DISTRICT-CIVIL-HOSP",
         abhaId=push_data.abhaId or patient.get("abha_id", "91-2345-6789-0123"),
         timestamp=now_iso,
-        bundleSummary={
-            "resourceType": "Bundle",
-            "entriesCount": 6,
-            "resources": ["Composition", "Patient", "Encounter", "Condition", "Observation", "Practitioner"],
-            "profile": "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle",
-            "double_coding": "NAMASTE & WHO ICD-11 TM2 + WHO ICD-11 MMS"
-        }
+        bundleSummary=payload
     )
 
 # ==============================================================================

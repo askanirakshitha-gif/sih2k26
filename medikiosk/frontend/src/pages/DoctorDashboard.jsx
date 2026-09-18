@@ -813,20 +813,19 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                     {/* Patient Demographics */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Patient Name</span>
-                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient_name} {isPrivacyMode ? '(MASKED)' : ''}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient?.full_name || dossier.patient_name || 'Patient'} {isPrivacyMode ? '(MASKED)' : ''}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Age & Gender</span>
-                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : dossier.age} Yrs • {dossier.gender}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : (dossier.patient?.age || dossier.age)} Yrs • {dossier.patient?.gender || dossier.gender}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">OPD Token</span>
-                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? 'OPD-***' : dossier.opd_token_number}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? 'OPD-***' : (dossier.session?.opd_token_number || dossier.opd_token_number)}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">System</span>
-                        <span className="font-semibold text-slate-900 text-sm uppercase">{dossier.clinical_system}</span>
+                        <span className="font-semibold text-slate-900 text-sm uppercase">{dossier.session?.clinical_system || dossier.clinical_system}</span>
                       </div>
                     </div>
 
