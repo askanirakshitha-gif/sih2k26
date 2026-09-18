@@ -576,6 +576,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
         patientId: finalPatientId,
         conditionId: system === 'ayush' ? 'ayush_general' : 'chest_pain',
         hospitalName: selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru',
+        hospitalId: selectedHospital ? selectedHospital.id || selectedHospital.hospitalId || null : null,
         opdToken: manualOpdToken.trim() !== '' ? manualOpdToken.trim() : null
       });
 

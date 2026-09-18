@@ -53,7 +53,7 @@ export const KioskService = {
     }
   },
 
-  startSession: async ({ language, system, patientId, conditionId, opdToken }) => {
+  startSession: async ({ language, system, patientId, conditionId, opdToken, hospitalName, hospitalId }) => {
     const payload = {
       language: language || 'en',
       system: system || 'allopathy',
@@ -61,7 +61,9 @@ export const KioskService = {
       patientId: patientId || null,
       patient_identifier: patientId || null,
       conditionId: conditionId || null,
-      opdToken: opdToken || null
+      opdToken: opdToken || null,
+      hospitalName: hospitalName || null,
+      hospitalId: hospitalId || null
     };
 
     try {

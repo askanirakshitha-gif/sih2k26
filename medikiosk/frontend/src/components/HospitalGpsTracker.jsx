@@ -5,6 +5,7 @@ import {
   ExternalLink, Sparkles, Building2, CheckCircle, Award, Globe
 } from 'lucide-react';
 import { getTranslation } from '../services/i18n';
+import { sanitizeHospitalRecord, matchesHospitalSearch } from '../utils/hospitalSearch';
 
 // Premier Bengaluru & Top Indian Hospitals with GPS Coordinates
 const BENGALURU_HOSPITALS_DATA = [
@@ -44,7 +45,7 @@ const BENGALURU_HOSPITALS_DATA = [
     id: 'hosp_fortis_bg_blr',
     name: 'Fortis Hospital Bannerghatta Road',
     city: 'Bengaluru',
-    address:154,
+    address: '154, Bannerghatta Road, Bengaluru, Karnataka 560076',
     lat: 12.8938,
     lng: 77.5978,
     phone: '+91-80-66214444',
@@ -242,17 +243,14 @@ export default function HospitalGpsTracker({ language = 'en', onSelectHospital, 
   };
 
   // Sort hospitals by distance from current user GPS location
-  const sortedHospitals = BENGALURU_HOSPITALS_DATA.map(h => ({
+  const sortedHospitals = BENGALURU_HOSPITALS_DATA.map((h) => sanitizeHospitalRecord({
     ...h,
     distanceKm: calculateDistance(userLocation.lat, userLocation.lng, h.lat, h.lng)
   })).sort((a, b) => a.distanceKm - b.distanceKm);
 
   // Filter hospitals by search query and category filter
-  const filteredHospitals = sortedHospitals.filter(h => {
-    const matchesSearch =
-      h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.address.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredHospitals = sortedHospitals.filter((h) => {
+    const matchesSearch = matchesHospitalSearch(h, searchQuery);
 
     if (!matchesSearch) return false;
 
