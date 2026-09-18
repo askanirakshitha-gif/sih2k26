@@ -15,6 +15,7 @@ import VoiceInputField from '../components/VoiceInputField';
 import RedFlagModal from '../components/RedFlagModal';
 import HospitalGpsTracker from '../components/HospitalGpsTracker';
 import DoctorAuthModal from '../components/DoctorAuthModal';
+import AbdmBlockchainTransferModal from '../components/AbdmBlockchainTransferModal';
 import { dispatchEmergencyAlert } from '../services/alertSync';
 
 export default function KioskApp({ onSwitchToDoctor }) {
@@ -22,6 +23,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [activeView, setActiveView] = useState('HOSPITALS');
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [isDoctorAuthOpen, setIsDoctorAuthOpen] = useState(false);
+  const [showAbdmBlockchainModal, setShowAbdmBlockchainModal] = useState(false);
   // Navigation Steps: 'LANG' | 'SYSTEM' | 'PATIENT' | 'CONSENT' | 'QUESTIONS' | 'DOCS' | 'DONE'
   const [step, setStep] = useState('LANG');
   const [language, setLanguage] = useState('en');
@@ -869,6 +871,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
         activeView={activeView}
         onNavigateView={(v) => setActiveView(v)}
         onOpenDoctorAuth={() => setIsDoctorAuthOpen(true)}
+        onOpenAbdmTransfer={() => setShowAbdmBlockchainModal(true)}
       />
 
       {/* Doctor Authentication PIN Modal */}
@@ -879,6 +882,13 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setIsDoctorAuthOpen(false);
           if (onSwitchToDoctor) onSwitchToDoctor();
         }}
+      />
+
+      {/* ABDM Inter-Hospital Exchange & Hybrid Blockchain Modal */}
+      <AbdmBlockchainTransferModal
+        isOpen={showAbdmBlockchainModal}
+        onClose={() => setShowAbdmBlockchainModal(false)}
+        selectedPatient={selectedPatient || { abha_id: '91-2345-6789-0123', full_name: 'Ramesh Sharma', gender: 'Male', age: 54, chief_complaint: 'Acute retrosternal chest pain' }}
       />
 
       {/* Red Flag Emergency Alert Modal */}

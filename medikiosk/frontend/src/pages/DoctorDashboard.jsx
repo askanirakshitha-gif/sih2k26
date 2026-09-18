@@ -7,11 +7,11 @@ import {
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
-import { 
-  subscribeToEmergencyAlerts, 
-  getUnacknowledgedAlerts, 
-  acknowledgeAlert, 
-  playAlertChime 
+import {
+  subscribeToEmergencyAlerts,
+  getUnacknowledgedAlerts,
+  acknowledgeAlert,
+  playAlertChime
 } from '../services/alertSync';
 
 export default function DoctorDashboard({ onSwitchToKiosk }) {
@@ -37,6 +37,9 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
   // ABDM Receipt Modal State
   const [abdmReceipt, setAbdmReceipt] = useState(null);
   const [showAbdmReceipt, setShowAbdmReceipt] = useState(false);
+
+  // ABDM + Hybrid Blockchain Inter-Hospital Transfer Modal State
+  const [showAbdmBlockchainModal, setShowAbdmBlockchainModal] = useState(false);
 
   // Real-Time Red Flag Emergency Alert State
   const [activeAlerts, setActiveAlerts] = useState([]);
@@ -209,7 +212,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-      
+
       {/* Top Header */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -258,6 +261,16 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
             >
               {isPrivacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               <span className="hidden sm:inline">{isPrivacyMode ? 'Privacy On' : 'Privacy Off'}</span>
+            </button>
+
+            {/* ABDM & Hybrid Blockchain Inter-Hospital Exchange Button */}
+            <button
+              onClick={() => setShowAbdmBlockchainModal(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black transition flex items-center space-x-1.5 shadow-md border border-emerald-400/40"
+              title="Open ABDM Inter-Hospital Data Transfer & Hybrid Blockchain Audit Ledger"
+            >
+              <Share2 className="w-4 h-4 text-emerald-200 shrink-0" />
+              <span className="hidden md:inline">ABDM & Blockchain Exchange</span>
             </button>
 
             <button
@@ -349,7 +362,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <div className="text-xs text-slate-500 mb-2">
                 {currentEmergencyAlert.age ? `${currentEmergencyAlert.age} Yrs` : ''} {currentEmergencyAlert.gender ? `• ${currentEmergencyAlert.gender}` : ''} • Detected: {new Date(currentEmergencyAlert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
-              
+
               <div className="mt-2 pt-2 border-t border-red-200 space-y-1.5">
                 {currentEmergencyAlert.redFlags?.map((rf, idx) => (
                   <div key={idx} className="text-xs text-red-950 font-bold bg-white p-2.5 rounded-xl border border-red-200">
@@ -407,11 +420,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <button
                 key={f}
                 onClick={() => setFilterSystem(f)}
-                className={`flex-1 py-1.5 rounded-lg font-bold capitalize transition ${
-                  filterSystem === f
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className={`flex-1 py-1.5 rounded-lg font-bold capitalize transition ${filterSystem === f
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
               >
                 {f}
               </button>
@@ -426,11 +438,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                 <div
                   key={s.id}
                   onClick={() => loadSessionDetail(s.id)}
-                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition text-left ${
-                    isSelected
-                      ? 'border-sky-600 bg-sky-50/50 shadow-sm'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition text-left ${isSelected
+                    ? 'border-sky-600 bg-sky-50/50 shadow-sm'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -442,9 +453,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                       </div>
                     </div>
 
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                      s.clinical_system === 'ayush' ? 'bg-teal-100 text-teal-800' : 'bg-sky-100 text-sky-800'
-                    }`}>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${s.clinical_system === 'ayush' ? 'bg-teal-100 text-teal-800' : 'bg-sky-100 text-sky-800'
+                      }`}>
                       {s.clinical_system}
                     </span>
                   </div>
@@ -468,10 +478,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
         {/* RIGHT PANEL: CLINICAL DOSSIER */}
         <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col h-[calc(100vh-140px)] overflow-y-auto">
-          
+
           {dossier ? (
             <div>
-              
+
               {/* Patient Banner */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 pb-5 mb-6 gap-4">
                 <div>
@@ -561,9 +571,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <div className="flex border-b border-slate-200 space-x-6 mb-6 text-sm font-bold">
                 <button
                   onClick={() => setActiveTab('clinical')}
-                  className={`pb-3 transition flex items-center space-x-2 ${
-                    activeTab === 'clinical' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'clinical' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
+                    }`}
                 >
                   <Activity className="w-4 h-4" />
                   <span>Clinical Case & HPI</span>
@@ -572,9 +581,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                 {dossier.session?.clinical_system === 'ayush' && (
                   <button
                     onClick={() => setActiveTab('ayush')}
-                    className={`pb-3 transition flex items-center space-x-2 ${
-                      activeTab === 'ayush' ? 'border-b-2 border-teal-600 text-teal-700' : 'text-slate-500 hover:text-slate-800'
-                    }`}
+                    className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'ayush' ? 'border-b-2 border-teal-600 text-teal-700' : 'text-slate-500 hover:text-slate-800'
+                      }`}
                   >
                     <Flower2 className="w-4 h-4" />
                     <span>AYUSH Dashavidha Pariksha</span>
@@ -583,9 +591,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
                 <button
                   onClick={() => setActiveTab('timeline')}
-                  className={`pb-3 transition flex items-center space-x-2 ${
-                    activeTab === 'timeline' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'timeline' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
+                    }`}
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Document Timeline ({dossier.documents?.length || 0})</span>
@@ -593,9 +600,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
                 <button
                   onClick={() => setActiveTab('notes')}
-                  className={`pb-3 transition flex items-center space-x-2 ${
-                    activeTab === 'notes' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'notes' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
+                    }`}
                 >
                   <Edit3 className="w-4 h-4" />
                   <span>Doctor Notes & Verification</span>
@@ -605,7 +611,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               {/* TAB 1: CLINICAL CASE & HPI */}
               {activeTab === 'clinical' && (
                 <div className="space-y-6">
-                  
+
                   {/* Chief Complaint */}
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Chief Complaint</span>
@@ -624,7 +630,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
                   {/* Grid of Medical, Drug, Allergy & Family History */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
+
                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Past Medical History</span>
                       <p className="text-sm font-semibold text-slate-800 mt-1">
@@ -677,7 +683,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    
+
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                       <span className="font-bold text-slate-500 uppercase">1. Sharirika Prakriti (Body Build)</span>
                       <div className="font-bold text-slate-900 text-sm mt-1">
@@ -813,15 +819,16 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                     {/* Patient Demographics */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient?.full_name || dossier.patient_name || 'Patient'} {isPrivacyMode ? '(MASKED)' : ''}</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Patient Name</span>
+                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient_name} {privacyMode ? '(MASKED)' : ''}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Age & Gender</span>
-                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : (dossier.patient?.age || dossier.age)} Yrs • {dossier.patient?.gender || dossier.gender}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{privacyMode ? '**' : dossier.age} Yrs • {dossier.gender}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">OPD Token</span>
-                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? 'OPD-***' : (dossier.session?.opd_token_number || dossier.opd_token_number)}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{privacyMode ? 'OPD-***' : dossier.opd_token_number}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">System</span>
@@ -949,6 +956,14 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
           </div>
         </div>
       )}
+
+      {/* ABDM + Hybrid Blockchain Inter-Hospital Exchange Modal */}
+      <AbdmBlockchainTransferModal
+        isOpen={showAbdmBlockchainModal}
+        onClose={() => setShowAbdmBlockchainModal(false)}
+        selectedPatient={dossier?.patient || { abha_id: '91-2345-6789-0123', full_name: 'Ramesh Sharma', gender: 'Male', age: 54, chief_complaint: 'Acute retrosternal chest pain' }}
+        fhirBundle={fhirBundle}
+      />
 
     </div>
   );

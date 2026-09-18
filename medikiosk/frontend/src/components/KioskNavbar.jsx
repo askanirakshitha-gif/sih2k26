@@ -1,8 +1,8 @@
 import React from 'react';
-import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX, Stethoscope } from 'lucide-react';
+import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX, Stethoscope, Share2 } from 'lucide-react';
 import { getTranslation } from '../services/i18n';
 
-export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud, autoVoice, onToggleAutoVoice, activeView, onNavigateView, onOpenDoctorAuth }) {
+export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud, autoVoice, onToggleAutoVoice, activeView, onNavigateView, onOpenDoctorAuth, onOpenAbdmTransfer }) {
   const t = (key) => getTranslation(language, key);
 
   return (
@@ -59,6 +59,18 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
         {/* Status Badges & Controls */}
         <div className="flex items-center space-x-3">
           
+          {/* ABDM & Hybrid Blockchain Inter-Hospital Data Transfer Button */}
+          {onOpenAbdmTransfer && (
+            <button
+              onClick={onOpenAbdmTransfer}
+              className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 border border-emerald-400/40"
+              title="Open ABDM Inter-Hospital Data Exchange & Blockchain Audit Ledger"
+            >
+              <Share2 className="w-4 h-4 text-emerald-200 shrink-0" />
+              <span className="hidden lg:inline">ABDM Data Exchange</span>
+            </button>
+          )}
+
           {/* Doctor Workstation Login Button */}
           {onOpenDoctorAuth && (
             <button
