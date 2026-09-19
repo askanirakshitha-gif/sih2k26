@@ -3,7 +3,7 @@ import {
   Stethoscope, AlertOctagon, CheckCircle, FileText, Send,
   Download, Eye, EyeOff, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
   Clock, User, HeartPulse, Flower2, ChevronRight, Activity, Calendar,
-  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer
+  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer, Share2
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
@@ -107,8 +107,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       const res = await DoctorService.getSessionDetail(id);
       if (res.success) {
         setDossier(res);
-        setProvisionalDiagnosis(res.review?.provisional_diagnosis || (res.session.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out'));
-        setPhysicianNotes(res.summary?.physician_notes || res.review?.prescription_notes || '');
+        setProvisionalDiagnosis(res.review?.provisionalDiagnosis || res.review?.provisional_diagnosis || (res.session?.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out'));
+        setPhysicianNotes(res.review?.clinicalNotes || res.summary?.physician_notes || res.review?.prescription_notes || '');
         setEditedHpi(res.summary?.hpi_summary || '');
       }
     } catch (err) {
@@ -125,13 +125,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
         sessionId: selectedSessionId,
         doctorId: 'DOC-AIIMS-108',
         doctorName: 'Dr. Vikramaditya Sharma, MD',
-        verificationStatus: 'verified',
         provisionalDiagnosis,
-        prescriptionNotes: physicianNotes,
-        editedSummary: {
-          hpi_summary: editedHpi,
-          physician_notes: physicianNotes
-        }
+        clinicalNotes: physicianNotes || editedHpi || 'Clinical review completed.',
+        verifiedMeds: [],
+        abdmConsentVerified: true
       });
 
       if (res.success) {
@@ -821,15 +818,15 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Patient Name</span>
-                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient_name} {privacyMode ? '(MASKED)' : ''}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient_name} {isPrivacyMode ? '(MASKED)' : ''}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Age & Gender</span>
-                        <span className="font-semibold text-slate-900 text-sm">{privacyMode ? '**' : dossier.age} Yrs • {dossier.gender}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : dossier.age} Yrs • {dossier.gender}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">OPD Token</span>
-                        <span className="font-semibold text-slate-900 text-sm">{privacyMode ? 'OPD-***' : dossier.opd_token_number}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? 'OPD-***' : dossier.opd_token_number}</span>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">System</span>
