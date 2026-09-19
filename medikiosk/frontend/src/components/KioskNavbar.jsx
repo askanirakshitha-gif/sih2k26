@@ -1,8 +1,8 @@
 import React from 'react';
-import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX, Stethoscope, Share2 } from 'lucide-react';
+import { Activity, Globe, AlertTriangle, UserCheck, Shield, Volume2, VolumeX, Stethoscope, Share2, Building2 } from 'lucide-react';
 import { getTranslation } from '../services/i18n';
 
-export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud, autoVoice, onToggleAutoVoice, activeView, onNavigateView, onOpenDoctorAuth, onOpenAbdmTransfer }) {
+export default function KioskNavbar({ language, onLanguageChange, opdToken, isRedFlag, isSpeakingPage, onReadPageAloud, autoVoice, onToggleAutoVoice, activeView, onNavigateView, onOpenDoctorAuth, onOpenAbdmTransfer, onOpenHospitalPortal }) {
   const t = (key) => getTranslation(language, key);
 
   return (
@@ -59,6 +59,18 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
         {/* Status Badges & Controls */}
         <div className="flex items-center space-x-3">
           
+          {/* Hospital Portal (Inter-Hospital Exchange) Button */}
+          {onOpenHospitalPortal && (
+            <button
+              onClick={onOpenHospitalPortal}
+              className="px-3 py-1.5 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 border border-indigo-400/40"
+              title="Open Hospital Node Dashboard (Inter-Hospital Patient Data Requests)"
+            >
+              <Building2 className="w-4 h-4 text-sky-200 shrink-0" />
+              <span className="hidden md:inline">Hospital Portal</span>
+            </button>
+          )}
+
           {/* ABDM & Hybrid Blockchain Inter-Hospital Data Transfer Button */}
           {onOpenAbdmTransfer && (
             <button

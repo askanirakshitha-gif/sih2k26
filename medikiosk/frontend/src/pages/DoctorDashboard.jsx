@@ -3,7 +3,7 @@ import {
   Stethoscope, AlertOctagon, CheckCircle, FileText, Send,
   Download, Eye, EyeOff, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
   Clock, User, HeartPulse, Flower2, ChevronRight, Activity, Calendar,
-  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer, Share2
+  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer, Share2, Building2
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
@@ -15,7 +15,7 @@ import {
   playAlertChime
 } from '../services/alertSync';
 
-export default function DoctorDashboard({ onSwitchToKiosk }) {
+export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital }) {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [dossier, setDossier] = useState(null);
@@ -208,12 +208,76 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
 
+  // Safely resolve patient and session demographics for dossier and printable report
+  const selectedQueueSession = sessions.find(s => s.id === selectedSessionId) || {};
+  const dossierPatient = dossier?.patient || {};
+  const dossierSession = dossier?.session || selectedQueueSession || {};
+
+  // robust extraction handling empty strings as falsy
+  const resolve = (...args) => {
+    return args.find(a => {
+      if (a === undefined || a === null) return false;
+      if (typeof a === 'string' && a.trim() === '') return false;
+      return true;
+    }) || '';
+  };
+
+  const currentPatientName = resolve(
+    dossierPatient.full_name,
+    dossierPatient.name,
+    dossierSession.patient_name,
+    dossier?.patient_name,
+    selectedQueueSession.patient_name
+  ) || 'Walk-in Patient';
+
+  const currentAge = resolve(
+    dossierPatient.age,
+    dossierSession.age,
+    dossier?.age,
+    selectedQueueSession.age
+  );
+
+  const currentGender = resolve(
+    dossierPatient.gender,
+    dossierSession.gender,
+    dossier?.gender,
+    selectedQueueSession.gender
+  );
+
+  const currentToken = resolve(
+    dossierSession.opd_token_number,
+    dossierSession.opdToken,
+    dossier?.opd_token_number,
+    dossier?.opdToken,
+    selectedQueueSession.opd_token_number,
+    selectedQueueSession.opdToken
+  ) || 'OPD-101';
+
+  const currentSystem = resolve(
+    dossierSession.clinical_system,
+    dossier?.clinical_system,
+    selectedQueueSession.clinical_system
+  ) || 'allopathy';
+
+  const currentAbha = resolve(
+    dossierPatient.abha_id,
+    dossierSession.abha_id,
+    dossier?.abha_id,
+    selectedQueueSession.abha_id
+  ) || '91-XXXX-XXXX-XXXX';
+
+  const currentPhone = resolve(
+    dossierPatient.phone,
+    dossierSession.phone,
+    selectedQueueSession.phone
+  ) || 'N/A';
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
 
       {/* Top Header */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-16 py-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-16 py-2.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow">
               <Stethoscope className="w-6 h-6" />
@@ -231,7 +295,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
             {activeAlerts.length > 0 && (
               <button
                 type="button"
@@ -270,6 +334,17 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <Share2 className="w-4 h-4 text-emerald-200 shrink-0" />
               <span className="hidden md:inline">ABDM & Blockchain Exchange</span>
             </button>
+
+            {onSwitchToHospital && (
+              <button
+                onClick={onSwitchToHospital}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl text-xs font-black transition flex items-center space-x-1.5 shadow-md border border-indigo-400/40"
+                title="Open Hospital Node Dashboard (Request Data & Manage Incoming Transfers)"
+              >
+                <Building2 className="w-4 h-4 text-sky-200 shrink-0" />
+                <span className="hidden md:inline">Hospital Portal</span>
+              </button>
+            )}
 
             <button
               onClick={onSwitchToKiosk}
@@ -401,10 +476,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       )}
 
       {/* Main Workspace Layout: Left Queue + Right Dossier */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-5 sm:gap-6">
 
         {/* LEFT PANEL: OPD PATIENT QUEUE */}
-        <div className="w-full lg:w-80 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 flex flex-col shrink-0 h-[calc(100vh-140px)]">
+        <div className="w-full lg:w-80 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 flex flex-col shrink-0 h-auto max-h-96 lg:max-h-none lg:h-[calc(100vh-140px)]">
           <div className="flex items-center justify-between mb-3 px-1">
             <h2 className="font-extrabold text-slate-900 text-base">OPD Queue</h2>
             <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">
@@ -475,7 +550,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
         </div>
 
         {/* RIGHT PANEL: CLINICAL DOSSIER */}
-        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col h-[calc(100vh-140px)] overflow-y-auto">
+        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 flex flex-col min-w-0 h-auto lg:h-[calc(100vh-140px)] overflow-y-auto">
 
           {dossier ? (
             <div>
@@ -484,15 +559,15 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 pb-5 mb-6 gap-4">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h2 className="text-2xl font-black text-slate-900">
-                      {dossier.patient?.full_name || 'Patient Case File'}
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                      {isPrivacyMode ? 'Patient Confidential' : currentPatientName}
                     </h2>
                     <span className="text-xs bg-slate-100 text-slate-700 font-mono font-bold px-2.5 py-1 rounded-lg border border-slate-300">
-                      ABHA: {dossier.patient?.abha_id || '91-XXXX-XXXX-XXXX'}
+                      ABHA: {currentAbha}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Age: <strong>{dossier.patient?.age} Yrs</strong> • Gender: <strong>{dossier.patient?.gender}</strong> • Phone: <strong>{dossier.patient?.phone}</strong> • OPD Token: <strong className="text-sky-700">{dossier.session?.opd_token_number}</strong>
+                    Age: <strong>{isPrivacyMode ? '**' : (currentAge ? `${currentAge} Yrs` : 'N/A')}</strong> • Gender: <strong>{currentGender || 'N/A'}</strong> • Phone: <strong>{isPrivacyMode ? '***' : currentPhone}</strong> • OPD Token: <strong className="text-sky-700 font-mono font-bold">{isPrivacyMode ? '***' : currentToken}</strong>
                   </p>
                 </div>
 
@@ -815,22 +890,22 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                     </div>
 
                     {/* Patient Demographics */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Patient Name</span>
-                        <span className="font-semibold text-slate-900 text-sm">{dossier.patient_name} {isPrivacyMode ? '(MASKED)' : ''}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '(MASKED)' : currentPatientName}</span>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Age & Gender</span>
-                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : dossier.age} Yrs • {dossier.gender}</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : (currentAge ? `${currentAge} Yrs` : '')} {currentGender ? `• ${currentGender}` : ''}</span>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">OPD Token</span>
-                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? 'OPD-***' : dossier.opd_token_number}</span>
+                        <span className="font-semibold text-sky-700 font-mono text-sm font-bold">{isPrivacyMode ? 'OPD-***' : currentToken}</span>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">System</span>
-                        <span className="font-semibold text-slate-900 text-sm uppercase">{dossier.session?.clinical_system || dossier.clinical_system}</span>
+                        <span className="font-semibold text-slate-900 text-sm uppercase">{currentSystem}</span>
                       </div>
                     </div>
 
@@ -959,7 +1034,14 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       <AbdmBlockchainTransferModal
         isOpen={showAbdmBlockchainModal}
         onClose={() => setShowAbdmBlockchainModal(false)}
-        selectedPatient={dossier?.patient || { abha_id: '91-2345-6789-0123', full_name: 'Ramesh Sharma', gender: 'Male', age: 54, chief_complaint: 'Acute retrosternal chest pain' }}
+        selectedPatient={{
+          ...dossierPatient,
+          full_name: currentPatientName,
+          age: currentAge,
+          gender: currentGender,
+          abha_id: currentAbha,
+          chief_complaint: dossier?.summary?.chief_complaint || dossierSession?.chief_complaint || 'OPD Intake'
+        }}
         fhirBundle={fhirBundle}
       />
 

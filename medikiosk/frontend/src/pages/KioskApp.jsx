@@ -18,7 +18,7 @@ import DoctorAuthModal from '../components/DoctorAuthModal';
 import AbdmBlockchainTransferModal from '../components/AbdmBlockchainTransferModal';
 import { dispatchEmergencyAlert } from '../services/alertSync';
 
-export default function KioskApp({ onSwitchToDoctor }) {
+export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
   // Navigation Views: 'HOSPITALS' (Landing & GPS Tracker) | 'INTAKE' (Clinical History Kiosk)
   const [activeView, setActiveView] = useState('HOSPITALS');
   const [selectedHospital, setSelectedHospital] = useState(null);
@@ -872,6 +872,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
         onNavigateView={(v) => setActiveView(v)}
         onOpenDoctorAuth={() => setIsDoctorAuthOpen(true)}
         onOpenAbdmTransfer={() => setShowAbdmBlockchainModal(true)}
+        onOpenHospitalPortal={onSwitchToHospital}
       />
 
       {/* Doctor Authentication PIN Modal */}

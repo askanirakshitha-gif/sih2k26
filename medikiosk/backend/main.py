@@ -698,10 +698,22 @@ async def get_doctor_session_detail(session_id: str):
         "status": "Stable" if not session.get("red_flag_detected") else "Critical / Triage Alert"
     }
 
+    patient_name = patient.get("full_name") or patient.get("name") or session.get("patient_name", "Walk-in Patient")
+    age = patient.get("age") if patient.get("age") is not None else session.get("age", 35)
+    gender = patient.get("gender") or session.get("gender", "Male")
+    opd_token = session.get("opd_token_number") or session.get("opdToken", "OPD-101")
+    clinical_system = session.get("clinical_system", "allopathy")
+
     return {
         "success": True,
         "session_id": session_id,
         "sessionId": session_id,
+        "patient_name": patient_name,
+        "age": age,
+        "gender": gender,
+        "opd_token_number": opd_token,
+        "opdToken": opd_token,
+        "clinical_system": clinical_system,
         "session": session,
         "patient": patient,
         "summary": summary,

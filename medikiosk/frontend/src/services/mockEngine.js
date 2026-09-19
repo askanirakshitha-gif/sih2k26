@@ -1262,10 +1262,29 @@ export const StandaloneMockEngine = {
     const review = localReviews[session.id] || null;
     const documents = localDocuments.filter(d => d.patient_id === patient.id);
 
+    const patientName = patient?.full_name || patient?.name || session.patient_name || 'Walk-in Patient';
+    const age = patient?.age ?? session.age ?? 35;
+    const gender = patient?.gender || session.gender || 'Male';
+    const token = session.opd_token_number || session.opdToken || 'OPD-101';
+    const system = session.clinical_system || 'allopathy';
+
     return {
       success: true,
+      session_id: session.id,
+      sessionId: session.id,
+      patient_name: patientName,
+      age: age,
+      gender: gender,
+      opd_token_number: token,
+      opdToken: token,
+      clinical_system: system,
       session,
-      patient,
+      patient: {
+        ...patient,
+        full_name: patientName,
+        age: age,
+        gender: gender
+      },
       summary,
       review,
       documents

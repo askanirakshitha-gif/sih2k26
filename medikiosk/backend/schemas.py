@@ -175,7 +175,7 @@ class DoctorReviewRequest(BaseModel):
     doctorName: Optional[str] = "Dr. Vikramaditya Sharma, MD"
     doctorId: Optional[str] = "DOC-AIIMS-0810"
     provisionalDiagnosis: Optional[str] = None
-    verifiedMeds: Optional[List[Dict[str, Any]]] = []
+    verifiedMeds: Optional[List[Any]] = []
     clinicalNotes: Optional[str] = None
     abdmConsentVerified: Optional[bool] = True
 
