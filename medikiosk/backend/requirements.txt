@@ -8,3 +8,4 @@ httpx>=0.24.0
 python-dotenv>=1.0.0
 psycopg[binary]>=3.1.0
 
+twilio>=8.0.0

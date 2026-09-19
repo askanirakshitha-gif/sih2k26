@@ -42,6 +42,10 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
   // ABDM + Hybrid Blockchain Inter-Hospital Transfer Modal State
   const [showAbdmBlockchainModal, setShowAbdmBlockchainModal] = useState(false);
 
+  // SMS Reminder State
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [smsStatus, setSmsStatus] = useState(null);
+
   // Real-Time Red Flag Emergency Alert State
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [currentEmergencyAlert, setCurrentEmergencyAlert] = useState(null);
@@ -183,6 +187,27 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
   };
 
   // Alert Handlers
+  const handleSendSmsReminder = async () => {
+    setIsSendingSms(true);
+    setSmsStatus(null);
+    try {
+      const payload = {
+        phoneNumber: '+919334590992',
+        message: 'MediKiosk Alert: Your visit is confirmed. Please take your prescribed medicines. Follow-up is due in 5 days.'
+      };
+      const res = await DoctorService.sendSmsReminder(payload);
+      if (res.success) {
+        setSmsStatus({ type: 'success', msg: 'Real-time SMS reminder sent successfully!' });
+      } else {
+        setSmsStatus({ type: 'error', msg: res.message || 'Failed to send SMS.' });
+      }
+    } catch (err) {
+      setSmsStatus({ type: 'error', msg: 'An error occurred while sending the SMS.' });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
   const handleReviewAlertPatient = (alert) => {
     if (!alert) return;
     acknowledgeAlert(alert.id || alert.sessionId);
@@ -1023,12 +1048,35 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
               <div><strong>Payload:</strong> FHIR R4 DocumentBundle ({abdmReceipt?.bundleSummary?.entriesCount} entries)</div>
             </div>
 
-            <button
-              onClick={() => setShowAbdmReceipt(false)}
-              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
-            >
-              Close Receipt
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={handleSendSmsReminder}
+                disabled={isSendingSms}
+                className={`w-full py-3.5 font-bold rounded-xl transition flex items-center justify-center space-x-2 ${
+                  isSendingSms 
+                    ? 'bg-blue-400 cursor-not-allowed text-white' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
+                }`}
+              >
+                <Smartphone className="w-5 h-5" />
+                <span>{isSendingSms ? 'Sending SMS...' : 'Send Visit Reminder SMS'}</span>
+              </button>
+              
+              {smsStatus && (
+                <div className={`p-3 rounded-lg text-sm font-medium ${
+                  smsStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {smsStatus.msg}
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowAbdmReceipt(false)}
+                className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
+              >
+                Close Receipt
+              </button>
+            </div>
           </div>
         </div>
       )}

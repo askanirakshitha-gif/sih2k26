@@ -232,6 +232,16 @@ export const DoctorService = {
       console.warn('[MediKiosk API] /doctor/auth endpoint check fallback:', err?.message);
       return StandaloneMockEngine.verifyDoctorPin(pin, staffId);
     }
+  },
+
+  sendSmsReminder: async (payload) => {
+    try {
+      const res = await api.post('/doctor/send-visit-reminder', payload);
+      return res.data;
+    } catch (err) {
+      console.warn('[MediKiosk API] sendSmsReminder failed:', err?.message);
+      return { success: false, message: err?.message };
+    }
   }
 };
 

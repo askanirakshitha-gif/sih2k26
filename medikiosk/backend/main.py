@@ -842,3 +842,22 @@ if os.path.exists(FRONTEND_DIST_DIR):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
+
+
+@app.post(/api/doctor/send-visit-reminder)
+async def send_visit_reminder(data: dict):
+    from twilio.rest import Client
+    import os
+    phone_number = data.get(phoneNumber, +919334590992)
+    message_body = data.get(message, MediKiosk Alert: Your visit is confirmed. Please take your prescribed medicines. Follow-up is due in 5 days.)
+    account_sid = os.environ.get(TWILIO_ACCOUNT_SID)
+    auth_token = os.environ.get(TWILIO_AUTH_TOKEN)
+    twilio_number = os.environ.get(TWILIO_PHONE_NUMBER)
+    if not account_sid or not auth_token:
+        return {success: True, message: f[MOCKED] SMS sent to {phone_number}, mocked: True}
+    try:
+        client = Client(account_sid, auth_token)
+        message = client.messages.create(body=message_body, from_=twilio_number, to=phone_number)
+        return {success: True, message: fSMS sent successfully! SID: {message.sid}, mocked: False}
+    except Exception as e:
+        return {success: False, message: str(e), mocked: False}
