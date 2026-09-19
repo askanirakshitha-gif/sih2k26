@@ -10,6 +10,7 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
   const [activeTab, setActiveTab] = useState('request'); // 'request' | 'consent' | 'ledger'
   const [abhaIdInput, setAbhaIdInput] = useState(selectedPatient?.abha_id || '91-2345-6789-0123');
   const [selectedFacility, setSelectedFacility] = useState('hip-aiims-delhi');
+  const [requesterFacilityId, setRequesterFacilityId] = useState('');
   const [recordScope, setRecordScope] = useState('Past 6 Months - All Records');
   
   // Consent Request State
@@ -62,8 +63,16 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
           console.error('Failed to parse previous hospital', e);
         }
       }
+
+      if (effectiveHospital) {
+        const exists = facilitiesList.find(f => f.id === effectiveHospital.id);
+        if (!exists) {
+          setFacilitiesList(prev => [effectiveHospital, ...prev]);
+        }
+        setRequesterFacilityId(effectiveHospital.id);
+      }
     }
-  }, [isOpen, selectedPatient, facilitiesList]);
+  }, [isOpen, selectedPatient, facilitiesList, effectiveHospital]);
 
   if (!isOpen) return null;
 
@@ -83,7 +92,8 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
     const providerFac = facilitiesList.find(f => f.id === selectedFacility);
     const providerName = providerFac ? providerFac.facilityName : 'Unknown Facility';
 
-    const hospitalName = effectiveHospital?.name || effectiveHospital?.facilityName || 'Manipal Hospital HAL (Hospital B)';
+    const reqFac = facilitiesList.find(f => f.id === requesterFacilityId) || effectiveHospital;
+    const hospitalName = reqFac?.name || reqFac?.facilityName || 'Manipal Hospital HAL (Hospital B)';
 
     const res = await AbdmBlockchainService.requestConsent({
       abhaId: abhaIdInput,
@@ -269,7 +279,7 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center">
                     <Building2 className="w-4 h-4 text-sky-600 mr-2" />
-                    Hospital B ({effectiveHospital?.name || effectiveHospital?.facilityName || 'Manipal Hospital'}) ➔ Patient Data Discovery & Fetch
+                    Requester (Hospital B) ➔ Provider (Hospital A)
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Query ABDM Health Information Exchange (HIE-CM) to locate records at selected Hospital A.
@@ -277,12 +287,12 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="px-2.5 py-1 bg-sky-50 text-sky-800 text-[11px] font-bold rounded-lg border border-sky-200">
-                    HIU Node: {effectiveHospital?.abdmFacilityId || 'MANIPAL_BLR_01'}
+                    HIU Node: {facilitiesList.find(f => f.id === requesterFacilityId)?.abdmFacilityId || 'MANIPAL_BLR_01'}
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Patient ABHA ID Input */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -297,10 +307,10 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                   />
                 </div>
 
-                {/* Discovered Facility Selector */}
+                {/* Discovered Facility Selector (Provider) */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Discovered Health Facility (HIP Node)
+                    Discovered Health Facility (HIP Node - Hospital A)
                   </label>
                   <select
                     value={selectedFacility}
@@ -309,7 +319,25 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                   >
                     {facilitiesList.map(f => (
                       <option key={f.id} value={f.id}>
-                        {f.facilityName} ({f.abdmFacilityId})
+                        {f.facilityName || f.name} ({f.abdmFacilityId})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Requester Facility Selector (Hospital B) */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Requester Health Facility (HIU Node - Hospital B)
+                  </label>
+                  <select
+                    value={requesterFacilityId}
+                    onChange={(e) => setRequesterFacilityId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-sky-500 outline-none bg-white"
+                  >
+                    {facilitiesList.map(f => (
+                      <option key={f.id} value={f.id}>
+                        {f.facilityName || f.name} ({f.abdmFacilityId})
                       </option>
                     ))}
                   </select>
