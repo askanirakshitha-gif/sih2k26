@@ -25,6 +25,20 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
   const [verificationResult, setVerificationResult] = useState(null);
   const [isVerifyingHash, setIsVerifyingHash] = useState(false);
 
+  // Resolve effective current hospital
+  const [effectiveHospital, setEffectiveHospital] = useState(currentHospital);
+
+  useEffect(() => {
+    if (!effectiveHospital) {
+      const stored = localStorage.getItem('lastVisitedHospital');
+      if (stored) {
+        try {
+          setEffectiveHospital(JSON.parse(stored));
+        } catch(e) {}
+      }
+    }
+  }, [currentHospital, effectiveHospital]);
+
   const [facilitiesList, setFacilitiesList] = useState(DISCOVERED_FACILITIES);
 
   useEffect(() => {
@@ -69,7 +83,7 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
     const providerFac = facilitiesList.find(f => f.id === selectedFacility);
     const providerName = providerFac ? providerFac.facilityName : 'Unknown Facility';
 
-    const hospitalName = currentHospital?.name || currentHospital?.facilityName || 'Manipal Hospital HAL (Hospital B)';
+    const hospitalName = effectiveHospital?.name || effectiveHospital?.facilityName || 'Manipal Hospital HAL (Hospital B)';
 
     const res = await AbdmBlockchainService.requestConsent({
       abhaId: abhaIdInput,
@@ -255,7 +269,7 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center">
                     <Building2 className="w-4 h-4 text-sky-600 mr-2" />
-                    Hospital B ({currentHospital?.name || currentHospital?.facilityName || 'Manipal Hospital'}) ➔ Patient Data Discovery & Fetch
+                    Hospital B ({effectiveHospital?.name || effectiveHospital?.facilityName || 'Manipal Hospital'}) ➔ Patient Data Discovery & Fetch
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Query ABDM Health Information Exchange (HIE-CM) to locate records at selected Hospital A.
@@ -263,7 +277,7 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="px-2.5 py-1 bg-sky-50 text-sky-800 text-[11px] font-bold rounded-lg border border-sky-200">
-                    HIU Node: {currentHospital?.abdmFacilityId || 'MANIPAL_BLR_01'}
+                    HIU Node: {effectiveHospital?.abdmFacilityId || 'MANIPAL_BLR_01'}
                   </span>
                 </div>
               </div>
