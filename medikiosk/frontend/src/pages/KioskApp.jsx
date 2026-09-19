@@ -138,7 +138,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
     defaultVoiceProvider.cancelSpeech();
     setIsSpeakingPage(false);
 
-    if (autoVoice && step !== 'LANG') {
+    if (autoVoice) {
       const timer = setTimeout(() => {
         const textToRead = getPageAuditableText(step);
         if (textToRead) {
