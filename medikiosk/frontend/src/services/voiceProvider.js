@@ -44,6 +44,16 @@ export class BrowserSpeechProvider extends VoiceProvider {
     this.recognitionClass = SpeechRecognition;
     this.activeRecognition = null;
     this.isListening = false;
+    
+    // Pre-load voices to avoid the Chrome empty voices array bug
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
+    }
   }
 
   isSupported() {
@@ -163,14 +173,22 @@ export class BrowserSpeechProvider extends VoiceProvider {
       utterance.rate = 0.95; // Clear natural cadence for patients
 
       // Attempt to pick a natural regional voice if installed
-      const voices = window.speechSynthesis.getVoices();
+      let voices = window.speechSynthesis.getVoices();
+      
       const matchVoice = voices.find(v => {
-        if (language === 'hi') return v.lang.includes('hi');
-        if (language === 'kn') return v.lang.includes('kn');
-        return v.lang.includes('en-IN') || v.lang.includes('en-GB');
+        if (language === 'hi') return v.lang.includes('hi') || v.name.includes('Hindi');
+        if (language === 'kn') return v.lang.includes('kn') || v.name.includes('Kannada');
+        return v.lang.includes('en-IN') || v.lang.includes('en-GB') || v.name.includes('India');
       });
+
       if (matchVoice) {
         utterance.voice = matchVoice;
+      } else {
+        // Fallback: If no specific Kannada/Hindi voice is found, try to find Google's online voice
+        const fallbackVoice = voices.find(v => v.name.includes('Google') && v.lang.includes(language === 'kn' ? 'kn' : language === 'hi' ? 'hi' : 'en'));
+        if (fallbackVoice) {
+            utterance.voice = fallbackVoice;
+        }
       }
 
       if (onEnd) utterance.onend = onEnd;

@@ -155,7 +155,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
         defaultVoiceProvider.cancelSpeech();
       };
     }
-  }, [step, language, autoVoice, isNewPatient]);
+  }, [step, language, autoVoice, isNewPatient, currentQuestion]);
 
   const getPageAuditableText = (targetStep) => {
     const lang = language;
@@ -592,9 +592,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
 
         if (res.nextQuestion) {
           const firstQText = res.nextQuestion.text || res.nextQuestion.questionText || '';
-          if (firstQText) {
-            defaultVoiceProvider.speak(firstQText, { language });
-          }
+          // Auto voice will handle speaking the first question via useEffect if enabled
         }
       }
     } catch (err) {
@@ -800,10 +798,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
           setProgress(res.progress);
           resetInputState();
 
-          // Read out next dynamically generated question
-          if (!res.isRedFlag) {
-            defaultVoiceProvider.speak(res.nextQuestion.text, { language });
-          }
+          // Auto voice handles speaking the next dynamically generated question via useEffect
         }
       }
     } catch (err) {
@@ -900,17 +895,11 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
           setShowRedFlagModal(false);
           setStaffAlertToast(true);
           setTimeout(() => setStaffAlertToast(false), 5000);
-          if (step === 'QUESTIONS' && currentQuestion?.text) {
-            defaultVoiceProvider.speak(currentQuestion.text, { language });
-          }
         }}
         onConfirmAndContinue={() => {
           setShowRedFlagModal(false);
           setStaffAlertToast(true);
           setTimeout(() => setStaffAlertToast(false), 5000);
-          if (step === 'QUESTIONS' && currentQuestion?.text) {
-            defaultVoiceProvider.speak(currentQuestion.text, { language });
-          }
         }}
         language={language}
       />
