@@ -120,18 +120,14 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
     setLoginError('');
   };
 
-  // Quick Switch Active Hospital (for easy testing of Hospital A vs Hospital B)
+  // Switch Active Hospital (Forces Authentication)
   const handleSwitchActiveHospital = (targetHospitalId) => {
-    const hosp = HospitalNetworkService.setCurrentHospital(targetHospitalId);
-    if (hosp) {
-      setActiveHospital(hosp);
-      // Adjust default source hospital
-      const others = HospitalNetworkService.getAvailableSourceHospitals(hosp.id);
-      if (others.length > 0) {
-        setSelectedSourceHospId(others[0].id);
-      }
-      setActionNotice(`Switched active node to ${hosp.name}`);
-      setTimeout(() => setActionNotice(null), 3000);
+    const targetHosp = REGISTERED_HOSPITALS.find(h => h.id === targetHospitalId);
+    if (targetHosp) {
+      handleLogout();
+      setHospitalIdInput(targetHosp.code);
+      setPasscodeInput(''); // Require user to enter the passcode to switch!
+      setLoginError(`Authentication required to access ${targetHosp.name}`);
     }
   };
 
