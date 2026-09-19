@@ -4,8 +4,12 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 
 from engine import clinical_engine
 

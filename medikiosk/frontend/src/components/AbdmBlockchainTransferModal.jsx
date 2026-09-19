@@ -4,7 +4,7 @@ import {
   RefreshCw, FileText, Activity, AlertTriangle, Cpu, Database, Share2,
   Check, Copy, ShieldCheck, ExternalLink, UserCheck, Flame, Layers
 } from 'lucide-react';
-import { AbdmBlockchainService } from '../services/abdmBlockchainGateway';
+import { AbdmBlockchainService, DISCOVERED_FACILITIES } from '../services/abdmBlockchainGateway';
 
 export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedPatient, fhirBundle }) {
   const [activeTab, setActiveTab] = useState('request'); // 'request' | 'consent' | 'ledger'
