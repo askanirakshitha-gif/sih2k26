@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { AbdmBlockchainService, DISCOVERED_FACILITIES } from '../services/abdmBlockchainGateway';
 
-export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedPatient, fhirBundle }) {
+export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedPatient, fhirBundle, currentHospital }) {
   const [activeTab, setActiveTab] = useState('request'); // 'request' | 'consent' | 'ledger'
   const [abhaIdInput, setAbhaIdInput] = useState(selectedPatient?.abha_id || '91-2345-6789-0123');
   const [selectedFacility, setSelectedFacility] = useState('hip-aiims-delhi');
@@ -66,13 +66,18 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
     setDecryptedData(null);
     setVerificationResult(null);
 
+    const providerFac = facilitiesList.find(f => f.id === selectedFacility);
+    const providerName = providerFac ? providerFac.facilityName : 'Unknown Facility';
+
+    const hospitalName = currentHospital?.name || currentHospital?.facilityName || 'Manipal Hospital HAL (Hospital B)';
+
     const res = await AbdmBlockchainService.requestConsent({
       abhaId: abhaIdInput,
       patientName: selectedPatient?.full_name || selectedPatient?.patient_name || 'Ramesh Sharma',
-      requesterDoctor: 'Dr. A. K. Sharma (Manipal Hospital)',
-      requesterHospital: 'Manipal Hospital HAL (Hospital B)',
+      requesterDoctor: `Dr. A. K. Sharma (${hospitalName})`,
+      requesterHospital: hospitalName,
       providerFacilityId: selectedFacility,
-      providerFacilityName: selectedFacility === 'hip-aiims-delhi' ? 'AIIMS New Delhi (Hospital A)' : 'Apollo Diagnostics',
+      providerFacilityName: providerName,
       scope: recordScope,
       validityHours: 24
     });
@@ -250,15 +255,15 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center">
                     <Building2 className="w-4 h-4 text-sky-600 mr-2" />
-                    Hospital B (Manipal Hospital) ➔ Patient Data Discovery & Fetch
+                    Hospital B ({currentHospital?.name || currentHospital?.facilityName || 'Manipal Hospital'}) ➔ Patient Data Discovery & Fetch
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Query ABDM Health Information Exchange (HIE-CM) to locate records at Hospital A (AIIMS New Delhi).
+                    Query ABDM Health Information Exchange (HIE-CM) to locate records at selected Hospital A.
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="px-2.5 py-1 bg-sky-50 text-sky-800 text-[11px] font-bold rounded-lg border border-sky-200">
-                    HIU Node: MANIPAL_BLR_01
+                    HIU Node: {currentHospital?.abdmFacilityId || 'MANIPAL_BLR_01'}
                   </span>
                 </div>
               </div>
