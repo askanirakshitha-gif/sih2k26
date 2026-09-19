@@ -74,6 +74,13 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
     }
   }, [isOpen, selectedPatient, facilitiesList, effectiveHospital]);
 
+  useEffect(() => {
+    // Reset consent request when facilities change so stale data isn't shown
+    setConsentReq(null);
+    setTransferStatus('idle');
+    setDecryptedData(null);
+  }, [selectedFacility, requesterFacilityId]);
+
   if (!isOpen) return null;
 
   const loadLedger = () => {
