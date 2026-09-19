@@ -924,6 +924,25 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
           language={language}
           onSelectHospital={(hosp) => setSelectedHospital(hosp)}
           onStartKiosk={() => {
+            if (selectedHospital) {
+              const currentHosp = {
+                id: selectedHospital.id || 'hip-manipal-blr',
+                facilityName: selectedHospital.name || 'Manipal Hospital HAL',
+                facilityType: selectedHospital.facilityType || 'Tertiary Hospital',
+                abdmFacilityId: selectedHospital.abdmFacilityId || 'IN00000000',
+                availableRecords: selectedHospital.specialties || ['Clinical Consultation', 'Prescription']
+              };
+              const prevStr = localStorage.getItem('lastVisitedHospital');
+              if (prevStr) {
+                try {
+                  const prevData = JSON.parse(prevStr);
+                  if (prevData.id !== currentHosp.id) {
+                    localStorage.setItem('previousVisitedHospital', prevStr);
+                  }
+                } catch(e) {}
+              }
+              localStorage.setItem('lastVisitedHospital', JSON.stringify(currentHosp));
+            }
             setActiveView('INTAKE');
             setStep('LANG');
           }}

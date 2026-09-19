@@ -25,14 +25,31 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
   const [verificationResult, setVerificationResult] = useState(null);
   const [isVerifyingHash, setIsVerifyingHash] = useState(false);
 
+  const [facilitiesList, setFacilitiesList] = useState(DISCOVERED_FACILITIES);
+
   useEffect(() => {
     if (isOpen) {
       loadLedger();
       if (selectedPatient?.abha_id) {
         setAbhaIdInput(selectedPatient.abha_id);
       }
+      
+      const prevStr = localStorage.getItem('previousVisitedHospital');
+      if (prevStr) {
+        try {
+          const prevData = JSON.parse(prevStr);
+          // Check if this hospital is already in the list
+          const exists = facilitiesList.find(f => f.id === prevData.id);
+          if (!exists) {
+            setFacilitiesList(prev => [prevData, ...prev]);
+          }
+          setSelectedFacility(prevData.id);
+        } catch(e) {
+          console.error('Failed to parse previous hospital', e);
+        }
+      }
     }
-  }, [isOpen, selectedPatient]);
+  }, [isOpen, selectedPatient, facilitiesList]);
 
   if (!isOpen) return null;
 
@@ -271,7 +288,7 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                     onChange={(e) => setSelectedFacility(e.target.value)}
                     className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-sky-500 outline-none bg-white"
                   >
-                    {DISCOVERED_FACILITIES.map(f => (
+                    {facilitiesList.map(f => (
                       <option key={f.id} value={f.id}>
                         {f.facilityName} ({f.abdmFacilityId})
                       </option>
