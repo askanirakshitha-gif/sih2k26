@@ -52,6 +52,22 @@ export const DISCOVERED_FACILITIES = [
     abdmFacilityId: 'IN0700055432',
     availableRecords: ['Ayurvedic SACTP Case File', 'Prakriti Pariksha Assessment'],
     lastVisitDate: '2024-08-22'
+  },
+  {
+    id: 'hip-fortis-escorts',
+    facilityName: 'Fortis Escorts Heart Institute',
+    facilityType: 'Cardiac Specialty Hospital',
+    abdmFacilityId: 'IN1100099411',
+    availableRecords: ['Treadmill Stress Test (TMT)', 'Echocardiography Report', 'Cardiology Consult'],
+    lastVisitDate: '2024-07-15'
+  },
+  {
+    id: 'hip-max-saket',
+    facilityName: 'Max Super Speciality Hospital, Saket',
+    facilityType: 'Multi-Speciality Hospital',
+    abdmFacilityId: 'IN1100088234',
+    availableRecords: ['Endocrinology Consult', 'HbA1c Lab Report'],
+    lastVisitDate: '2024-06-30'
   }
 ];
 
