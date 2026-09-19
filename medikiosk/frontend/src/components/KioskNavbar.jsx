@@ -7,7 +7,7 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
 
   return (
     <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[4.5rem] py-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-4">
         
         {/* Brand & Emblem */}
         <div className="flex items-center space-x-4">
