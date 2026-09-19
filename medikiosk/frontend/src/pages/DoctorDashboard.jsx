@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
+import AbdmBlockchainTransferModal from '../components/AbdmBlockchainTransferModal';
 import {
   subscribeToEmergencyAlerts,
   getUnacknowledgedAlerts,
