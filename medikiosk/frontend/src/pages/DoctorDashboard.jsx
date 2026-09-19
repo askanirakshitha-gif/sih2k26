@@ -348,7 +348,18 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
 
             {/* Live Patient Device View Button */}
             <button
-              onClick={() => setIsSimulatorOpen(true)}
+              onClick={() => {
+                // If they manually open it and it's empty, inject some demo alerts
+                if (triggerAlerts.length === 0) {
+                  setTriggerAlerts([
+                    { type: 'appointment', title: 'Appointment Confirmed', message: 'Your consultation at Govt. General Hospital is confirmed.' },
+                    { type: 'risk', title: 'High Risk Detected', message: 'Please visit hospital soon.' },
+                    { type: 'medicine', title: 'Medicine Reminder', message: 'Take medicine at 6:00 PM.' },
+                    { type: 'followup', title: 'Follow-up Reminder', message: 'Your follow-up is in 5 days.' }
+                  ]);
+                }
+                setIsSimulatorOpen(true);
+              }}
               className="px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow bg-indigo-600 hover:bg-indigo-500 text-white"
               title="View Simulated Patient Device SMS Alerts"
             >

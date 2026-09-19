@@ -37,27 +37,33 @@ export default function PatientNotificationSimulator({ isOpen, onClose, triggerA
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      {/* Close Button (External to Phone) */}
+      <button 
+        onClick={onClose}
+        className="absolute top-6 right-6 sm:top-10 sm:right-10 z-[60] p-4 bg-white/10 hover:bg-white/20 rounded-full transition shadow-xl"
+      >
+        <X className="w-8 h-8 text-white" />
+      </button>
+
       {/* Mobile Phone Frame */}
-      <div className="relative w-full max-w-sm bg-white rounded-[3rem] shadow-2xl overflow-hidden border-[12px] border-slate-900 aspect-[9/19] flex flex-col animate-in fade-in zoom-in duration-300">
+      <div 
+        className="relative w-full max-w-[340px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border-[12px] border-slate-900 aspect-[9/19] flex flex-col animate-in fade-in zoom-in-95 duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Dynamic Island / Notch */}
-        <div className="absolute top-0 inset-x-0 h-6 flex justify-center">
-          <div className="w-1/3 h-5 bg-slate-900 rounded-b-2xl"></div>
+        <div className="absolute top-0 inset-x-0 h-7 flex justify-center z-20">
+          <div className="w-1/3 h-6 bg-slate-900 rounded-b-2xl"></div>
         </div>
 
-        {/* Close Button (External to Phone) */}
-        <button 
-          onClick={onClose}
-          className="absolute top-4 right-4 z-50 p-2 bg-slate-200/80 hover:bg-slate-300 rounded-full transition"
-        >
-          <X className="w-5 h-5 text-slate-700" />
-        </button>
-
-        <div className="flex-1 bg-slate-50 flex flex-col pt-12 p-6 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 bg-slate-50 flex flex-col pt-14 p-6 overflow-y-auto custom-scrollbar">
           
           <div className="flex flex-col items-center justify-center mb-8">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">Alerts & Notifications</h2>
+            <h2 className="text-[22px] font-black text-slate-800 mb-4 tracking-tight">Alerts & Notifications</h2>
             <div className="relative">
               <Bell className="w-14 h-14 text-blue-700" strokeWidth={1.5} />
               {activeAlerts.length > 0 && (
