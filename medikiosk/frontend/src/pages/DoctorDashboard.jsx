@@ -3,11 +3,12 @@ import {
   Stethoscope, AlertOctagon, CheckCircle, FileText, Send,
   Download, Eye, EyeOff, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
   Clock, User, HeartPulse, Flower2, ChevronRight, Activity, Calendar,
-  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer, Share2, Building2
+  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer, Share2, Building2, Smartphone
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
 import AbdmBlockchainTransferModal from '../components/AbdmBlockchainTransferModal';
+import PatientNotificationSimulator from '../components/PatientNotificationSimulator';
 import {
   subscribeToEmergencyAlerts,
   getUnacknowledgedAlerts,
@@ -42,6 +43,9 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
   // ABDM + Hybrid Blockchain Inter-Hospital Transfer Modal State
   const [showAbdmBlockchainModal, setShowAbdmBlockchainModal] = useState(false);
 
+  // Patient Notification Simulator State
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [triggerAlerts, setTriggerAlerts] = useState([]);
   // Real-Time Red Flag Emergency Alert State
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [currentEmergencyAlert, setCurrentEmergencyAlert] = useState(null);
@@ -171,6 +175,23 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
         setAbdmReceipt(res);
         setShowAbdmReceipt(true);
         loadSessions();
+
+        // -------------------------------------------------------------
+        // AUTOMATED FEATURE: Simulate SMS Alerts sent to the patient
+        // -------------------------------------------------------------
+        const alerts = [
+          { type: 'appointment', title: 'Appointment Confirmed', message: `Your consultation at ${res.hospital?.name || 'Govt. General Hospital'} is confirmed.` },
+          { type: 'medicine', title: 'Medicine Reminder', message: 'Take medicine at 6:00 PM.' },
+          { type: 'followup', title: 'Follow-up Reminder', message: 'Your follow-up is in 5 days.' }
+        ];
+        
+        // Add High Risk alert if the case was flagged
+        if (dossier?.session?.red_flag_detected) {
+          alerts.splice(1, 0, { type: 'risk', title: 'High Risk Detected', message: 'Please visit hospital soon.' });
+        }
+        
+        setTriggerAlerts(alerts);
+        setIsSimulatorOpen(true);
       }
     } catch (err) {
       alert('Error pushing to mock ABDM: ' + err.message);
@@ -323,6 +344,16 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
             >
               {isPrivacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               <span className="hidden sm:inline">{isPrivacyMode ? 'Privacy On' : 'Privacy Off'}</span>
+            </button>
+
+            {/* Live Patient Device View Button */}
+            <button
+              onClick={() => setIsSimulatorOpen(true)}
+              className="px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow bg-indigo-600 hover:bg-indigo-500 text-white"
+              title="View Simulated Patient Device SMS Alerts"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span className="hidden sm:inline">Live Device View</span>
             </button>
 
             {/* ABDM & Hybrid Blockchain Inter-Hospital Exchange Button */}
@@ -1043,6 +1074,13 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
           chief_complaint: dossier?.summary?.chief_complaint || dossierSession?.chief_complaint || 'OPD Intake'
         }}
         fhirBundle={fhirBundle}
+      />
+
+      {/* Patient Notifications Simulator */}
+      <PatientNotificationSimulator
+        isOpen={isSimulatorOpen}
+        onClose={() => setIsSimulatorOpen(false)}
+        triggerAlerts={triggerAlerts}
       />
 
     </div>
