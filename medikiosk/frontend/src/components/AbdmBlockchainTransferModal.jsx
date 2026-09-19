@@ -102,10 +102,18 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
     const reqFac = facilitiesList.find(f => f.id === requesterFacilityId) || effectiveHospital;
     const hospitalName = reqFac?.name || reqFac?.facilityName || 'Manipal Hospital HAL (Hospital B)';
 
+    // Dynamic Doctor Assignment based on Hospital
+    let doctorName = "Dr. A. K. Sharma";
+    if (hospitalName.includes("Aster") || hospitalName.includes("aster")) doctorName = "Dr. Priya Rajagopal";
+    else if (hospitalName.includes("Victoria") || hospitalName.includes("victoria")) doctorName = "Dr. Ramesh Kumar";
+    else if (hospitalName.includes("Apollo") || hospitalName.includes("apollo")) doctorName = "Dr. Suresh Menon";
+    else if (hospitalName.includes("Fortis") || hospitalName.includes("fortis")) doctorName = "Dr. Anjali Desai";
+    else if (hospitalName.includes("Max") || hospitalName.includes("max")) doctorName = "Dr. Vikram Singh";
+
     const res = await AbdmBlockchainService.requestConsent({
       abhaId: abhaIdInput,
       patientName: selectedPatient?.full_name || selectedPatient?.patient_name || 'Ramesh Sharma',
-      requesterDoctor: `Dr. A. K. Sharma (${hospitalName})`,
+      requesterDoctor: `${doctorName} (${hospitalName})`,
       requesterHospital: hospitalName,
       providerFacilityId: selectedFacility,
       providerFacilityName: providerName,
