@@ -279,10 +279,10 @@ export default function AbdmBlockchainTransferModal({ isOpen, onClose, selectedP
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center">
                     <Building2 className="w-4 h-4 text-sky-600 mr-2" />
-                    Requester (Hospital B) ➔ Provider (Hospital A)
+                    {facilitiesList.find(f => f.id === requesterFacilityId)?.facilityName || facilitiesList.find(f => f.id === requesterFacilityId)?.name || 'Requester (Hospital B)'} ➔ {facilitiesList.find(f => f.id === selectedFacility)?.facilityName || facilitiesList.find(f => f.id === selectedFacility)?.name || 'Provider (Hospital A)'}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Query ABDM Health Information Exchange (HIE-CM) to locate records at selected Hospital A.
+                    Query ABDM Health Information Exchange (HIE-CM) to locate records at the selected provider.
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
