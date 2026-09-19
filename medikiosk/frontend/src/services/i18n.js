@@ -133,7 +133,27 @@ export const translations = {
     autoVoiceOn: "Auto-Voice ON",
     autoVoiceOff: "Auto-Voice Muted",
     recognizedVoiceText: "Recognized Voice:",
-    clearField: "Clear"
+    clearField: "Clear",
+    
+    // Hospital Dashboard
+    hospitalSignIn: "Hospital Node Sign-In",
+    hospitalSignInSub: "Connect your Hospital Information System (HIS) to request patient records from other network hospitals, or respond to incoming transfer requests via cryptographic blockchain smart contracts.",
+    reqPatientDataTitle: "Request Patient Data From Another Hospital",
+    reqPatientDataSub: "Select which hospital you want to request clinical records from. When dispatched, the request will be routed to that hospital's dashboard and the patient for OTP consent verification.",
+    hospitalPortalBtn: "Hospital Portal",
+    patientKioskBtn: "Patient Kiosk",
+    docWorkstationBtn: "Doctor OPD Queue",
+    enterCreds: "Enter Hospital Credentials",
+    hospIdCode: "Hospital ID / Code",
+    passcodeKey: "Security Passcode / Secret Key",
+    openDashboardBtn: "Open Hospital Dashboard",
+    chooseHospital: "Choose Your Hospital Identity (1-Click Fill)",
+    simulateNode: "Simulate Node:",
+    tabRequest: "1. Request Patient Data",
+    tabIncoming: "2. Second Hospital View (Incoming)",
+    tabTransferred: "3. Transferred Patient Dossier",
+    tabLedger: "4. Blockchain Audit Ledger",
+    step1Title: "1. Choose Which Hospital To Request Data From:"
   },
   
   hi: {
@@ -265,7 +285,27 @@ export const translations = {
     autoVoiceOn: "स्वचालित आवाज चालू",
     autoVoiceOff: "स्वचालित आवाज बंद",
     recognizedVoiceText: "सुनी गई आवाज:",
-    clearField: "हटाएं"
+    clearField: "हटाएं",
+    
+    // Hospital Dashboard
+    hospitalSignIn: "अस्पताल नोड साइन-इन",
+    hospitalSignInSub: "अन्य अस्पतालों से रोगी रिकॉर्ड का अनुरोध करने के लिए, या ब्लॉकचेन स्मार्ट कॉन्ट्रैक्ट के माध्यम से आने वाले अनुरोधों का जवाब देने के लिए अपने अस्पताल सूचना प्रणाली (HIS) को कनेक्ट करें।",
+    reqPatientDataTitle: "दूसरे अस्पताल से रोगी डेटा का अनुरोध करें",
+    reqPatientDataSub: "चुनें कि आप किस अस्पताल से रिकॉर्ड का अनुरोध करना चाहते हैं। भेजे जाने पर, अनुरोध उस अस्पताल के डैशबोर्ड और रोगी के पास OTP सत्यापन के लिए भेजा जाएगा।",
+    hospitalPortalBtn: "अस्पताल पोर्टल",
+    patientKioskBtn: "रोगी कियोस्क",
+    docWorkstationBtn: "डॉक्टर OPD कतार",
+    enterCreds: "अस्पताल क्रेडेंशियल दर्ज करें",
+    hospIdCode: "अस्पताल ID / कोड",
+    passcodeKey: "सुरक्षा पासकोड / गुप्त कुंजी",
+    openDashboardBtn: "अस्पताल डैशबोर्ड खोलें",
+    chooseHospital: "अपनी अस्पताल पहचान चुनें",
+    simulateNode: "नोड अनुकरण करें:",
+    tabRequest: "1. रोगी डेटा का अनुरोध करें",
+    tabIncoming: "2. दूसरा अस्पताल दृश्य (आवक)",
+    tabTransferred: "3. स्थानांतरित रोगी डॉसियर",
+    tabLedger: "4. ब्लॉकचेन ऑडिट लेजर",
+    step1Title: "1. चुनें कि किस अस्पताल से डेटा का अनुरोध करना है:"
   },
 
   kn: {
@@ -397,7 +437,27 @@ export const translations = {
     autoVoiceOn: "ಸ್ವಯಂ ಧ್ವನಿ ಸಕ್ರಿಯ",
     autoVoiceOff: "ಸ್ವಯಂ ಧ್ವನಿ ನಿಷ್ಕ್ರಿಯ",
     recognizedVoiceText: "ಗುರುತಿಸಲಾದ ಧ್ವನಿ:",
-    clearField: "ಅಳಿಸಿ"
+    clearField: "ಅಳಿಸಿ",
+    
+    // Hospital Dashboard
+    hospitalSignIn: "ಆಸ್ಪತ್ರೆ ನೋಡ್ ಸೈನ್-ಇನ್",
+    hospitalSignInSub: "ಇತರ ನೆಟ್‌ವರ್ಕ್ ಆಸ್ಪತ್ರೆಗಳಿಂದ ರೋಗಿಗಳ ದಾಖಲೆಗಳನ್ನು ವಿನಂತಿಸಲು, ಅಥವಾ ಬ್ಲಾಕ್‌ಚೈನ್ ಸ್ಮಾರ್ಟ್ ಒಪ್ಪಂದಗಳ ಮೂಲಕ ಒಳಬರುವ ವಿನಂತಿಗಳಿಗೆ ಪ್ರತಿಕ್ರಿಯಿಸಲು ನಿಮ್ಮ ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆ (HIS) ಸಂಪರ್ಕಿಸಿ.",
+    reqPatientDataTitle: "ಇನ್ನೊಂದು ಆಸ್ಪತ್ರೆಯಿಂದ ರೋಗಿಯ ಡೇಟಾ ವಿನಂತಿಸಿ",
+    reqPatientDataSub: "ನೀವು ಯಾವ ಆಸ್ಪತ್ರೆಯಿಂದ ದಾಖಲೆಗಳನ್ನು ವಿನಂತಿಸಲು ಬಯಸುತ್ತೀರಿ ಎಂಬುದನ್ನು ಆಯ್ಕೆಮಾಡಿ. ಒಮ್ಮೆ ಕಳುಹಿಸಿದ ನಂತರ, OTP ಪರಿಶೀಲನೆಗಾಗಿ ಆ ಆಸ್ಪತ್ರೆಯ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಮತ್ತು ರೋಗಿಗೆ ವಿನಂತಿಯನ್ನು ರವಾನಿಸಲಾಗುತ್ತದೆ.",
+    hospitalPortalBtn: "ಆಸ್ಪತ್ರೆ ಪೋರ್ಟಲ್",
+    patientKioskBtn: "ರೋಗಿಯ ಕಿಯೋಸ್ಕ್",
+    docWorkstationBtn: "ವೈದ್ಯರ OPD ಸರದಿ",
+    enterCreds: "ಆಸ್ಪತ್ರೆ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ",
+    hospIdCode: "ಆಸ್ಪತ್ರೆ ID / ಕೋಡ್",
+    passcodeKey: "ಭದ್ರತಾ ಪಾಸ್‌ಕೋಡ್ / ರಹಸ್ಯ ಕೀ",
+    openDashboardBtn: "ಆಸ್ಪತ್ರೆ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ತೆರೆಯಿರಿ",
+    chooseHospital: "ನಿಮ್ಮ ಆಸ್ಪತ್ರೆಯ ಗುರುತನ್ನು ಆರಿಸಿ",
+    simulateNode: "ನೋಡ್ ಅನುಕರಿಸಿ:",
+    tabRequest: "1. ರೋಗಿಯ ಡೇಟಾ ವಿನಂತಿಸಿ",
+    tabIncoming: "2. ಎರಡನೇ ಆಸ್ಪತ್ರೆ ನೋಟ (ಒಳಬರುವ)",
+    tabTransferred: "3. ವರ್ಗಾವಣೆಗೊಂಡ ರೋಗಿಯ ಫೈಲ್",
+    tabLedger: "4. ಬ್ಲಾಕ್‌ಚೈನ್ ಆಡಿಟ್ ಲೆಡ್ಜರ್",
+    step1Title: "1. ಡೇಟಾ ವಿನಂತಿಸಲು ಆಸ್ಪತ್ರೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ:"
   }
 };
 

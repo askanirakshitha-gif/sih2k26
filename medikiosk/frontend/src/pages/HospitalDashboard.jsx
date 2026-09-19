@@ -13,8 +13,12 @@ import {
   DEMO_PATIENTS,
   HOSPITAL_CLINICAL_ARCHIVE
 } from '../services/hospitalNetworkService';
+import { getTranslation } from '../services/i18n';
 
 export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor }) {
+  const [language, setLanguage] = useState('en');
+  const t = (key) => getTranslation(language, key);
+
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('active_hospital_id');
@@ -270,12 +274,18 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
           </div>
 
           <div className="flex items-center space-x-3">
+            {/* Language Switcher */}
+            <div className="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+              <button onClick={() => setLanguage('en')} className={`px-2 py-1 text-xs font-bold rounded-lg ${language === 'en' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>EN</button>
+              <button onClick={() => setLanguage('hi')} className={`px-2 py-1 text-xs font-bold rounded-lg ${language === 'hi' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>HI</button>
+              <button onClick={() => setLanguage('kn')} className={`px-2 py-1 text-xs font-bold rounded-lg ${language === 'kn' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>KN</button>
+            </div>
             {onSwitchToKiosk && (
               <button
                 onClick={onSwitchToKiosk}
                 className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition border border-slate-700"
               >
-                📋 Patient Kiosk
+                📋 {t('patientKioskBtn')}
               </button>
             )}
             {onSwitchToDoctor && (
@@ -283,7 +293,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                 onClick={onSwitchToDoctor}
                 className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-sky-950 hover:bg-sky-900 text-sky-300 transition border border-sky-800/50"
               >
-                🩺 Doctor OPD Queue
+                🩺 {t('docWorkstationBtn')}
               </button>
             )}
           </div>
@@ -301,11 +311,11 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
-                Hospital Node Sign-In
+                {t('hospitalSignIn')}
               </h1>
 
               <p className="text-slate-300 text-sm leading-relaxed">
-                Connect your Hospital Information System (HIS) to request patient records from other network hospitals, or respond to incoming transfer requests via cryptographic blockchain smart contracts.
+                {t('hospitalSignInSub')}
               </p>
 
               <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3">
@@ -544,12 +554,18 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
 
           {/* Right Navigation & Logout */}
           <div className="flex items-center space-x-2.5">
+            {/* Language Switcher */}
+            <div className="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700 hidden sm:flex">
+              <button onClick={() => setLanguage('en')} className={`px-2 py-1 text-[10px] sm:text-xs font-bold rounded-lg ${language === 'en' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>EN</button>
+              <button onClick={() => setLanguage('hi')} className={`px-2 py-1 text-[10px] sm:text-xs font-bold rounded-lg ${language === 'hi' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>HI</button>
+              <button onClick={() => setLanguage('kn')} className={`px-2 py-1 text-[10px] sm:text-xs font-bold rounded-lg ${language === 'kn' ? 'bg-sky-600 text-white' : 'text-slate-400'}`}>KN</button>
+            </div>
             {onSwitchToKiosk && (
               <button
                 onClick={onSwitchToKiosk}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700"
               >
-                📋 Patient Kiosk
+                📋 {t('patientKioskBtn')}
               </button>
             )}
             {onSwitchToDoctor && (
@@ -557,7 +573,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                 onClick={onSwitchToDoctor}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-950 hover:bg-sky-900 text-sky-300 transition border border-sky-800/60"
               >
-                🩺 Doctor Workstation
+                🩺 {t('docWorkstationBtn')}
               </button>
             )}
             <button
@@ -676,10 +692,10 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                     <span>Cross-Hospital ABDM Gateway</span>
                   </div>
                   <h2 className="text-2xl font-black text-white">
-                    Request Patient Data From Another Hospital
+                    {t('reqPatientDataTitle')}
                   </h2>
                   <p className="text-slate-400 text-xs sm:text-sm mt-1">
-                    Select which hospital you want to request clinical records from. When dispatched, the request will be routed to that hospital's dashboard and the patient for OTP consent verification.
+                    {t('reqPatientDataSub')}
                   </p>
                 </div>
 
