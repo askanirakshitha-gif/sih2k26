@@ -357,7 +357,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                 
                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
                   <div>
-                    <h2 className="text-xl font-black text-white">Enter Hospital Credentials</h2>
+                    <h2 className="text-xl font-black text-white">{t('enterCreds')}</h2>
                     <p className="text-xs text-slate-400 mt-0.5">Your Hospital Dashboard will appear immediately upon verification</p>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-sky-400">
@@ -376,7 +376,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                      Hospital ID / Code
+                      {t('hospIdCode')}
                     </label>
                     <div className="relative">
                       <Building2 className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
@@ -393,7 +393,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                        Security Passcode / Secret Key
+                        {t('passcodeKey')}
                       </label>
                       <span className="text-[11px] text-slate-400">See presets below</span>
                     </div>
@@ -421,7 +421,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                       </>
                     ) : (
                       <>
-                        <span>Open Hospital Dashboard</span>
+                        <span>{t('openDashboardBtn')}</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -433,7 +433,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Choose Your Hospital Identity (1-Click Fill)</span>
+                      <span>{t('chooseHospital')}</span>
                     </span>
                     <span className="text-[11px] text-slate-500">Click preset to select</span>
                   </div>
