@@ -41,7 +41,7 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🏥 Hospitals Near Me (GPS)
+              🏥 {t('hospitalsNearMeBtn')}
             </button>
             <button
               onClick={() => onNavigateView('INTAKE')}
@@ -51,7 +51,7 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              📋 Patient Intake Kiosk
+              📋 {t('patientIntakeBtn')}
             </button>
           </div>
         )}
@@ -67,7 +67,7 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
               title="Open Hospital Node Dashboard (Inter-Hospital Patient Data Requests)"
             >
               <Building2 className="w-4 h-4 text-sky-200 shrink-0" />
-              <span className="hidden md:inline">Hospital Portal</span>
+              <span className="hidden md:inline">{t('hospitalPortalBtn')}</span>
             </button>
           )}
 
@@ -79,7 +79,7 @@ export default function KioskNavbar({ language, onLanguageChange, opdToken, isRe
               title="Open ABDM Inter-Hospital Data Exchange & Blockchain Audit Ledger"
             >
               <Share2 className="w-4 h-4 text-emerald-200 shrink-0" />
-              <span className="hidden lg:inline">ABDM Data Exchange</span>
+              <span className="hidden lg:inline">{t('abdmDataExchangeBtn')}</span>
             </button>
           )}
 

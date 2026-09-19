@@ -19,6 +19,12 @@ export const translations = {
     stepDocs: "Prescriptions",
     stepDone: "OPD Token",
     
+    // Navbar
+    hospitalsNearMeBtn: "Hospitals Near Me (GPS)",
+    patientIntakeBtn: "Patient Intake Kiosk",
+    hospitalPortalBtn: "Hospital Portal",
+    abdmDataExchangeBtn: "ABDM Data Exchange",
+    
     // Language Selection Screen
     selectLanguageTitle: "Select Your Preferred Language",
     selectLanguageSubtitle: "कृपया अपनी भाषा चुनें (Touch to select)",
@@ -145,6 +151,12 @@ export const translations = {
     stepDocs: "दस्तावेज़",
     stepDone: "ओपीडी टोकन",
     
+    // Navbar
+    hospitalsNearMeBtn: "आसपास के अस्पताल (GPS)",
+    patientIntakeBtn: "रोगी कियोस्क",
+    hospitalPortalBtn: "अस्पताल पोर्टल",
+    abdmDataExchangeBtn: "ABDM डेटा एक्सचेंज",
+    
     // Language Selection Screen
     selectLanguageTitle: "अपनी पसंदीदा भाषा चुनें",
     selectLanguageSubtitle: "स्क्रीन पर स्पर्श करके अपनी भाषा चुनें",
@@ -270,6 +282,12 @@ export const translations = {
     stepQuestions: "ಕೇಸ್-ಟೇಕಿಂಗ್",
     stepDocs: "ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ಗಳು",
     stepDone: "OPD ಟೋಕನ್",
+    
+    // Navbar
+    hospitalsNearMeBtn: "ಹತ್ತಿರದ ಆಸ್ಪತ್ರೆಗಳು (GPS)",
+    patientIntakeBtn: "ರೋಗಿಯ ಕಿಯೋಸ್ಕ್",
+    hospitalPortalBtn: "ಆಸ್ಪತ್ರೆ ಪೋರ್ಟಲ್",
+    abdmDataExchangeBtn: "ABDM ಡೇಟಾ ವಿನಿಮಯ",
     
     // Language Selection Screen
     selectLanguageTitle: "ನಿಮ್ಮ ಆದ್ಯತೆಯ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
