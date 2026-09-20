@@ -173,6 +173,7 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
 
       if (res.success) {
         setAbdmReceipt(res);
+        setSmsStatus(null);
         setShowAbdmReceipt(true);
         loadSessions();
 
@@ -191,18 +192,24 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
     setIsSendingSms(true);
     setSmsStatus(null);
     try {
+      const targetPhone = (currentPhone && currentPhone !== 'N/A') ? currentPhone : '+91 93345 90992';
       const payload = {
-        phoneNumber: '+919334590992',
-        message: 'MediKiosk Alert: Your visit is confirmed. Please take your prescribed medicines. Follow-up is due in 5 days.'
+        phoneNumber: targetPhone,
+        patientName: currentPatientName,
+        token: currentToken,
+        message: `MediKiosk Alert: OPD Consultation for ${currentPatientName} (Token: ${currentToken}) completed. Follow-up advised in 5 days. Digital prescriptions synced to ABHA: ${currentAbha}.`
       };
       const res = await DoctorService.sendSmsReminder(payload);
       if (res.success) {
-        setSmsStatus({ type: 'success', msg: 'Real-time SMS reminder sent successfully!' });
+        setSmsStatus({ 
+          type: 'success', 
+          msg: res.message || `SMS reminder sent successfully to ${targetPhone}!` 
+        });
       } else {
         setSmsStatus({ type: 'error', msg: res.message || 'Failed to send SMS.' });
       }
     } catch (err) {
-      setSmsStatus({ type: 'error', msg: 'An error occurred while sending the SMS.' });
+      setSmsStatus({ type: 'error', msg: err?.message || 'An error occurred while sending the SMS.' });
     } finally {
       setIsSendingSms(false);
     }
@@ -1059,19 +1066,33 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
                 }`}
               >
                 <Smartphone className="w-5 h-5" />
-                <span>{isSendingSms ? 'Sending SMS...' : 'Send Visit Reminder SMS'}</span>
+                <span>
+                  {isSendingSms 
+                    ? 'Sending SMS...' 
+                    : `Send Visit Reminder SMS (${(currentPhone && currentPhone !== 'N/A') ? currentPhone : '+91 93345 90992'})`}
+                </span>
               </button>
               
               {smsStatus && (
-                <div className={`p-3 rounded-lg text-sm font-medium ${
-                  smsStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                <div className={`p-3 rounded-lg text-sm font-medium flex items-center justify-center space-x-2 ${
+                  smsStatus.type === 'success' 
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                    : 'bg-red-50 text-red-700 border border-red-200'
                 }`}>
-                  {smsStatus.msg}
+                  {smsStatus.type === 'success' ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  )}
+                  <span>{smsStatus.msg}</span>
                 </div>
               )}
 
               <button
-                onClick={() => setShowAbdmReceipt(false)}
+                onClick={() => {
+                  setShowAbdmReceipt(false);
+                  setSmsStatus(null);
+                }}
                 className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
               >
                 Close Receipt

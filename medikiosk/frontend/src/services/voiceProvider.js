@@ -1,7 +1,12 @@
 /**
  * Voice Provider Abstraction Architecture
- * Enables seamless switching between Browser Web Speech API and future Indian language
- * government engines such as Bhashini or AI4Bharat.
+ * Enables seamless switching between Browser Web Speech API and Indian language
+ * government engines (Bhashini / Indian Neural Voice TTS).
+ * 
+ * - English & Hindi: Native browser Web Speech API (speechSynthesis & SpeechRecognition)
+ *   runs immediately and natively without network latency.
+ * - Kannada (kn): Windows Chrome has no Kannada voice; dynamically routes through
+ *   the backend Indian Neural TTS engine (/api/bhashini/tts?language=kn).
  */
 
 export class VoiceProvider {
@@ -34,6 +39,7 @@ export class VoiceProvider {
 
 /**
  * Browser Web Speech API Provider (SpeechRecognition & SpeechSynthesis)
+ * with High-Fidelity Indian Neural TTS Fallback for Regional Languages (Kannada).
  */
 export class BrowserSpeechProvider extends VoiceProvider {
   constructor() {
@@ -44,6 +50,10 @@ export class BrowserSpeechProvider extends VoiceProvider {
     this.recognitionClass = SpeechRecognition;
     this.activeRecognition = null;
     this.isListening = false;
+    this.currentUtterance = null;
+    this.currentAudio = null;
+    this.currentBlobUrl = null;
+    this.speechSessionId = 0;
     
     // Pre-load voices to avoid the Chrome empty voices array bug
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -160,39 +170,88 @@ export class BrowserSpeechProvider extends VoiceProvider {
   }
 
   speak(text, { language = 'en', onEnd, onError } = {}) {
-    if (!('speechSynthesis' in window)) {
+    if (!text || !text.trim()) {
+      if (onEnd) onEnd();
+      return;
+    }
+
+    const cleanLang = (language || 'en').toLowerCase().slice(0, 2);
+    const trimmed = text.trim();
+
+    // 1. Kannada Handling:
+    // Windows/Chrome lacks a native Kannada TTS voice.
+    // If no Kannada voice is available in the browser, route to Indian Neural TTS backend.
+    if (cleanLang === 'kn') {
+      const voices = typeof window !== 'undefined' && 'speechSynthesis' in window
+        ? window.speechSynthesis.getVoices() || []
+        : [];
+      const hasNativeKannada = voices.some(v => {
+        const vl = (v.lang || '').toLowerCase();
+        const vn = (v.name || '').toLowerCase();
+        return vl.startsWith('kn') || vn.includes('kannada') || vn.includes('sapna') || vn.includes('gagan');
+      });
+
+      if (!hasNativeKannada) {
+        this.speakViaBackendTTS(trimmed, 'kn', onEnd, onError);
+        return;
+      }
+    }
+
+    // 2. English & Hindi Handling (and Kannada if voice is available in browser):
+    // Use the original repository implementation with window.speechSynthesis
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       console.warn('Speech synthesis not supported');
+      if (onError) onError(new Error('Speech synthesis not supported'));
       return;
     }
 
     try {
       this.cancelSpeech();
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
-      utterance.rate = 0.95; // Clear natural cadence for patients
+      // Ensure any paused synthesis state is resumed (fixes Chrome speech hang bug)
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
 
-      // Attempt to pick a natural regional voice if installed
-      let voices = window.speechSynthesis.getVoices();
-      
+      const utterance = new SpeechSynthesisUtterance(trimmed);
+      this.currentUtterance = utterance; // Prevent Chrome garbage collection bug
+      utterance.lang = cleanLang === 'hi' ? 'hi-IN' : cleanLang === 'kn' ? 'kn-IN' : 'en-IN';
+      utterance.rate = 0.95;
+
+      const voices = window.speechSynthesis.getVoices() || [];
       const matchVoice = voices.find(v => {
-        if (language === 'hi') return v.lang.includes('hi') || v.name.includes('Hindi');
-        if (language === 'kn') return v.lang.includes('kn') || v.name.includes('Kannada');
-        return v.lang.includes('en-IN') || v.lang.includes('en-GB') || v.name.includes('India');
+        const vl = (v.lang || '').toLowerCase();
+        const vn = (v.name || '').toLowerCase();
+        if (cleanLang === 'hi') return vl.startsWith('hi') || vn.includes('hindi') || vn.includes('swara') || vn.includes('kalpana');
+        if (cleanLang === 'kn') return vl.startsWith('kn') || vn.includes('kannada');
+        return vl.includes('en-in') || vl.includes('en-gb') || vl.includes('india') || vn.includes('neerja') || vl.startsWith('en');
       });
 
       if (matchVoice) {
         utterance.voice = matchVoice;
       } else {
-        // Fallback: If no specific Kannada/Hindi voice is found, try to find Google's online voice
-        const fallbackVoice = voices.find(v => v.name.includes('Google') && v.lang.includes(language === 'kn' ? 'kn' : language === 'hi' ? 'hi' : 'en'));
+        const fallbackVoice = voices.find(v => {
+          const vl = (v.lang || '').toLowerCase();
+          const vn = (v.name || '').toLowerCase();
+          return (vl.includes('google') || vn.includes('natural')) && vl.includes(cleanLang === 'hi' ? 'hi' : 'en');
+        });
         if (fallbackVoice) {
-            utterance.voice = fallbackVoice;
+          utterance.voice = fallbackVoice;
         }
       }
 
-      if (onEnd) utterance.onend = onEnd;
-      if (onError) utterance.onerror = onError;
+      utterance.onend = () => {
+        this.currentUtterance = null;
+        if (onEnd) onEnd();
+      };
+
+      utterance.onerror = (e) => {
+        this.currentUtterance = null;
+        if (e.error !== 'interrupted' && e.error !== 'canceled') {
+          console.warn('[SpeechSynthesis notice]', e.error);
+          if (onError) onError(e);
+        }
+      };
 
       window.speechSynthesis.speak(utterance);
     } catch (err) {
@@ -201,11 +260,118 @@ export class BrowserSpeechProvider extends VoiceProvider {
     }
   }
 
+  speakViaBackendTTS(text, language = 'kn', onEnd, onError) {
+    this.cancelSpeech();
+    const sessionId = ++this.speechSessionId;
+    const streamUrl = `/api/bhashini/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}&gender=female`;
+
+    fetch(streamUrl)
+      .then(res => {
+        if (!res.ok) throw new Error(`Backend TTS responded with HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        if (this.speechSessionId !== sessionId) return;
+        const blobUrl = URL.createObjectURL(blob);
+        this.currentBlobUrl = blobUrl;
+        const audio = new Audio(blobUrl);
+        this.currentAudio = audio;
+
+        audio.onended = () => {
+          if (this.speechSessionId === sessionId) {
+            this.cleanupAudio();
+            if (onEnd) onEnd();
+          }
+        };
+
+        audio.onerror = (e) => {
+          if (this.speechSessionId === sessionId) {
+            console.warn('[Kannada Audio playback error]', e);
+            this.cleanupAudio();
+            if (onError) onError(e);
+          }
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            if (err?.name !== 'AbortError') {
+              console.warn('[Kannada Audio Play error]', err);
+              if (this.speechSessionId === sessionId) {
+                this.cleanupAudio();
+                if (onError) onError(err);
+              }
+            }
+          });
+        }
+      })
+      .catch(err => {
+        if (this.speechSessionId === sessionId) {
+          console.warn('[Kannada TTS fetch error]', err);
+          this.cleanupAudio();
+          if (onError) onError(err);
+        }
+      });
+  }
+
+  cleanupAudio() {
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        this.currentAudio.src = '';
+      } catch (e) {}
+      this.currentAudio = null;
+    }
+    if (this.currentBlobUrl) {
+      try {
+        URL.revokeObjectURL(this.currentBlobUrl);
+      } catch (e) {}
+      this.currentBlobUrl = null;
+    }
+  }
+
   cancelSpeech() {
-    if ('speechSynthesis' in window) {
+    this.speechSessionId++;
+    this.cleanupAudio();
+    this.currentUtterance = null;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
   }
+}
+
+// User-gesture audio unlocker: unlocks HTML5 audio autoplay policy on first touch or click
+let audioUnlocked = false;
+export function unlockAudio() {
+  if (audioUnlocked || typeof window === 'undefined') return;
+  try {
+    const dummy = new Audio();
+    dummy.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    dummy.volume = 0.01;
+    const p = dummy.play();
+    if (p) {
+      p.then(() => {
+        audioUnlocked = true;
+        dummy.pause();
+      }).catch(() => {});
+    }
+  } catch (e) {}
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.resume();
+    } catch (e) {}
+  }
+  audioUnlocked = true;
+}
+
+if (typeof window !== 'undefined') {
+  const unlockEvents = ['click', 'touchstart', 'keydown'];
+  const onUserInteraction = () => {
+    unlockAudio();
+    unlockEvents.forEach(ev => window.removeEventListener(ev, onUserInteraction));
+  };
+  unlockEvents.forEach(ev => window.addEventListener(ev, onUserInteraction, { passive: true }));
 }
 
 /**

@@ -7,7 +7,7 @@ import {
   Pill, Hospital, Activity, Printer, Download
 } from 'lucide-react';
 import { KioskService } from '../services/api';
-import { defaultVoiceProvider, playAudioChime } from '../services/voiceProvider';
+import { defaultVoiceProvider, playAudioChime, unlockAudio } from '../services/voiceProvider';
 import { getTranslation } from '../services/i18n';
 import KioskNavbar from '../components/KioskNavbar';
 import VoiceWaveform from '../components/VoiceWaveform';
@@ -33,7 +33,6 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
-  const [autoVoice, setAutoVoice] = useState(true); // Auto-voice narration for illiterate patients
   const [newPatientForm, setNewPatientForm] = useState({
     full_name: '',
     age: '',
@@ -133,84 +132,171 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
   // Page Audio Read-Aloud State & Controls
   const [isSpeakingPage, setIsSpeakingPage] = useState(false);
 
-  // Auto-trigger audio read-aloud when arriving at any step or question if autoVoice is enabled
+  // Global first user interaction unlock listener
+  useEffect(() => {
+    const handleFirstUserInteraction = () => {
+      unlockAudio();
+    };
+    window.addEventListener('click', handleFirstUserInteraction, { passive: true });
+    window.addEventListener('touchstart', handleFirstUserInteraction, { passive: true });
+    return () => {
+      window.removeEventListener('click', handleFirstUserInteraction);
+      window.removeEventListener('touchstart', handleFirstUserInteraction);
+    };
+  }, []);
+
+  // Auto-trigger audio read-aloud when arriving at any step, view, or question
   useEffect(() => {
     defaultVoiceProvider.cancelSpeech();
     setIsSpeakingPage(false);
 
-    if (autoVoice) {
-      const timer = setTimeout(() => {
-        const textToRead = getPageAuditableText(step);
-        if (textToRead) {
-          setIsSpeakingPage(true);
-          defaultVoiceProvider.speak(textToRead, {
-            language,
-            onEnd: () => setIsSpeakingPage(false),
-            onError: () => setIsSpeakingPage(false)
-          });
-        }
-      }, 400);
-      return () => {
-        clearTimeout(timer);
-        defaultVoiceProvider.cancelSpeech();
-      };
-    }
-  }, [step, language, autoVoice, isNewPatient, currentQuestion]);
+    const timer = setTimeout(() => {
+      const targetScreen = activeView === 'HOSPITALS' ? 'HOSPITALS' : step;
+      const textToRead = getPageAuditableText(targetScreen);
+      if (textToRead && textToRead.trim()) {
+        setIsSpeakingPage(true);
+        defaultVoiceProvider.speak(textToRead, {
+          language,
+          onEnd: () => setIsSpeakingPage(false),
+          onError: () => setIsSpeakingPage(false)
+        });
+      }
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+      defaultVoiceProvider.cancelSpeech();
+    };
+  }, [activeView, step, language, isNewPatient, currentQuestion?.id]);
 
   const getPageAuditableText = (targetStep) => {
     const lang = language;
-    if (targetStep === 'CONSENT') {
-      return `${getTranslation(lang, 'consentTitle')}. ${getTranslation(lang, 'consentSubtitle')}. Point 1: ${getTranslation(lang, 'consentText1')}. Point 2: ${getTranslation(lang, 'consentText2')}. Point 3: ${getTranslation(lang, 'consentText3')}. Agreement: ${getTranslation(lang, 'consentCheckbox')}`;
+
+    if (targetStep === 'HOSPITALS') {
+      if (lang === 'hi') {
+        return "मेडीकियोस्क एआई में आपका स्वागत है। निकटतम सरकारी व नेटवर्क अस्पताल, लाइव जीपीएस दूरी और उपलब्ध ओपीडी सेवाएं देखें। पंजीकरण शुरू करने के लिए मरीज पंजीकरण पर स्पर्श करें।";
+      }
+      if (lang === 'kn') {
+        return "ಮೆಡಿಕಿಯೋಸ್ಕ್ ಎಐಗೆ ಸುಸ್ವಾಗತ. ಹತ್ತಿರದ ಸರ್ಕಾರಿ ಮತ್ತು ನೆಟ್‌ವರ್ಕ್ ಆಸ್ಪತ್ರೆಗಳು, ಲೈವ್ ಜಿಪಿಎಸ್ ದೂರ ಮತ್ತು ಲಭ್ಯವಿರುವ ಒಪಿಡಿ ಸೇವೆಗಳನ್ನು ಪರಿಶೀಲಿಸಿ. ನೋಂದಣಿ ಪ್ರಾರಂಭಿಸಲು ರೋಗಿಯ ಕಿಯೋಸ್ಕ್ ಬಟನ್ ಒತ್ತಿ.";
+      }
+      return "Welcome to MediKiosk AI. Find nearby government and empaneled hospitals, check live GPS distances, and view available OPD specialties. Tap Patient Intake Kiosk to begin registration.";
     }
+
     if (targetStep === 'LANG') {
-      return `${getTranslation(lang, 'selectLanguageTitle')}. ${getTranslation(lang, 'selectLanguageSubtitle')}`;
+      if (lang === 'hi') {
+        return "कृपया अपनी पसंदीदा भाषा चुनें। आगे बढ़ने के लिए स्क्रीन पर अंग्रेजी, हिंदी या कन्नड़ को स्पर्श करें।";
+      }
+      if (lang === 'kn') {
+        return "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಆದ್ಯತೆಯ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ. ಮುಂದುವರಿಯಲು ಇಂಗ್ಲಿಷ್, ಹಿಂದಿ ಅಥವಾ ಕನ್ನಡವನ್ನು ಸ್ಪರ್ಶಿಸಿ.";
+      }
+      return "Select your preferred language. Touch English, Hindi, or Kannada on the screen to proceed.";
     }
+
     if (targetStep === 'SYSTEM') {
-      return `${getTranslation(lang, 'selectSystemTitle')}. ${getTranslation(lang, 'selectSystemSubtitle')}. ${getTranslation(lang, 'allopathyTitle')}: ${getTranslation(lang, 'allopathyDesc')}. ${getTranslation(lang, 'ayushTitle')}: ${getTranslation(lang, 'ayushDesc')}`;
+      if (lang === 'hi') {
+        return `${getTranslation(lang, 'selectSystemTitle')}। ${getTranslation(lang, 'selectSystemSubtitle')}। पहला विकल्प: ${getTranslation(lang, 'allopathyTitle')}, ${getTranslation(lang, 'allopathyDesc')}। दूसरा विकल्प: ${getTranslation(lang, 'ayushTitle')}, ${getTranslation(lang, 'ayushDesc')}।`;
+      }
+      if (lang === 'kn') {
+        return `${getTranslation(lang, 'selectSystemTitle')}. ${getTranslation(lang, 'selectSystemSubtitle')}. ಮೊದಲ ಆಯ್ಕೆ: ${getTranslation(lang, 'allopathyTitle')}, ${getTranslation(lang, 'allopathyDesc')}. ಎರಡನೇ ಆಯ್ಕೆ: ${getTranslation(lang, 'ayushTitle')}, ${getTranslation(lang, 'ayushDesc')}.`;
+      }
+      return `${getTranslation(lang, 'selectSystemTitle')}. ${getTranslation(lang, 'selectSystemSubtitle')}. Option 1: ${getTranslation(lang, 'allopathyTitle')}. ${getTranslation(lang, 'allopathyDesc')}. Option 2: ${getTranslation(lang, 'ayushTitle')}. ${getTranslation(lang, 'ayushDesc')}.`;
     }
+
     if (targetStep === 'PATIENT') {
       if (isNewPatient) {
-        return lang === 'hi'
-          ? "नया मरीज पंजीकरण। कृपया अपना नाम, उम्र, मोबाइल नंबर, और अपनी मुख्य बीमारी, पुरानी दवाइयां एवं एलर्जी का विवरण भरें। आप बोलकर भी बता सकते हैं।"
-          : lang === 'kn'
-          ? "ಹೊಸ ರೋಗಿ ನೋಂದಣಿ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು, ವಯಸ್ಸು, ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಮತ್ತು ರೋಗ ಲಕ್ಷಣಗಳ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ ತಿಳಿಸಿ."
-          : "New patient registration. Please enter your name, age, phone number, chief complaint, past medical history, current medications, and allergies. You can type, tap chips, or tap the microphone to speak.";
+        if (lang === 'hi') {
+          return "नया मरीज पंजीकरण। कृपया अपना पूरा नाम, उम्र, लिंग, मोबाइल नंबर, मुख्य बीमारी और मेडिकल इतिहास दर्ज करें। आप बोलकर भी बता सकते हैं।";
+        }
+        if (lang === 'kn') {
+          return "ಹೊಸ ರೋಗಿ ನೋಂದಣಿ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು, ವಯಸ್ಸು, ಲಿಂಗ, ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಮತ್ತು ರೋಗ ಲಕ್ಷಣಗಳ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ ಅಥವಾ ಧ್ವನಿ ಮೂಲಕ ಮಾತನಾಡಿ ತಿಳಿಸಿ.";
+        }
+        return "New patient registration. Please enter your name, age, gender, mobile number, chief complaint, and medical history. You can tap quick chips, type, or tap the microphone to speak.";
       }
-      return lang === 'hi'
-        ? "मरीज पहचान। सूची से पंजीकृत मरीज चुनें या नया पंजीकरण करने के लिए 'नया मरीज पंजीकरण' पर स्पर्श करें।"
-        : lang === 'kn'
-        ? "ರೋಗಿಯ ಗುರುತು. ಪಟ್ಟಿಯಿಂದ ರೋಗಿಯನ್ನು ಆರಿಸಿ ಅಥವಾ ಹೊಸ ರೋಗಿ ನೋಂದಣಿ ಬಟನ್ ಒತ್ತಿ."
-        : "Patient Identification screen. Choose a registered patient from the list or tap 'New Walk-in Patient' to register.";
+      if (lang === 'hi') {
+        return "मरीज पहचान। सूची से पहले से पंजीकृत मरीज चुनें, या नया पंजीकरण करने के लिए 'नया ओपीडी मरीज' पर स्पर्श करें।";
+      }
+      if (lang === 'kn') {
+        return "ರೋಗಿಯ ಗುರುತು. ಪಟ್ಟಿಯಿಂದ ನೋಂದಾಯಿತ ರೋಗಿಯನ್ನು ಆಯ್ಕೆಮಾಡಿ, ಅಥವಾ ಹೊಸ ನೋಂದಣಿಗಾಗಿ 'ಹೊಸ ರೋಗಿ ನೋಂದಣಿ' ಬಟನ್ ಒತ್ತಿ.";
+      }
+      return "Patient Identification screen. Choose a registered patient from the list, or tap New Walk-in Patient to register.";
     }
+
+    if (targetStep === 'CONSENT') {
+      if (lang === 'hi') {
+        return `${getTranslation(lang, 'consentTitle')}। ${getTranslation(lang, 'consentSubtitle')}। पहला बिंदु: ${getTranslation(lang, 'consentText1')}। दूसरा बिंदु: ${getTranslation(lang, 'consentText2')}। तीसरा बिंदु: ${getTranslation(lang, 'consentText3')}। सहमति: ${getTranslation(lang, 'consentCheckbox')}।`;
+      }
+      if (lang === 'kn') {
+        return `${getTranslation(lang, 'consentTitle')}. ${getTranslation(lang, 'consentSubtitle')}. ಮೊದಲ ಅಂಶ: ${getTranslation(lang, 'consentText1')}. ಎರಡನೇ ಅಂಶ: ${getTranslation(lang, 'consentText2')}. ಮೂರನೇ ಅಂಶ: ${getTranslation(lang, 'consentText3')}. ಸಮ್ಮತಿ: ${getTranslation(lang, 'consentCheckbox')}.`;
+      }
+      return `${getTranslation(lang, 'consentTitle')}. ${getTranslation(lang, 'consentSubtitle')}. Point 1: ${getTranslation(lang, 'consentText1')}. Point 2: ${getTranslation(lang, 'consentText2')}. Point 3: ${getTranslation(lang, 'consentText3')}. Agreement: ${getTranslation(lang, 'consentCheckbox')}`;
+    }
+
     if (targetStep === 'QUESTIONS' && currentQuestion) {
-      const qOptionsText = (currentQuestion.options || []).map(o => o.text).join('. ');
-      return `${currentQuestion.text}. ${qOptionsText ? 'Options: ' + qOptionsText : ''}`;
+      const qText = currentQuestion.text || currentQuestion.questionText || '';
+      const opts = currentQuestion.options || [];
+      if (lang === 'hi') {
+        const optsText = opts.length > 0 ? 'विकल्प हैं: ' + opts.map((o, idx) => `विकल्प ${idx + 1}, ${o.text}`).join('। ') + '। उत्तर देने के लिए विकल्प चुनें या बोलकर बताएं।' : 'कृपया अपना उत्तर लिखें या बोलकर बताएं।';
+        return `${qText}। ${optsText}`;
+      }
+      if (lang === 'kn') {
+        const optsText = opts.length > 0 ? 'ಆಯ್ಕೆಗಳು: ' + opts.map((o, idx) => `ಆಯ್ಕೆ ${idx + 1}, ${o.text}`).join('. ') + '. ಉತ್ತರಿಸಲು ಆಯ್ಕೆಯನ್ನು ಸ್ಪರ್ಶಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ.' : 'ದಯವಿಟ್ಟು ಉತ್ತರಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ.';
+        return `${qText}. ${optsText}`;
+      }
+      const optsText = opts.length > 0 ? 'Options are: ' + opts.map((o, idx) => `Option ${idx + 1}, ${o.text}`).join('. ') + '. Tap an option or tap the microphone to speak your answer.' : 'Please type or speak your answer.';
+      return `${qText}. ${optsText}`;
     }
+
     if (targetStep === 'DOCS') {
-      return lang === 'hi'
-        ? "चिकित्सा दस्तावेज अपलोड करें। पर्ची या जांच रिपोर्ट स्कैन या अपलोड करें।"
-        : lang === 'kn'
-        ? "ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅಥವಾ ಲ್ಯಾಬ್ ವರದಿಯನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ."
-        : "Medical Document Upload. Upload past prescriptions or lab test reports.";
+      if (uploadedDocs.length > 0) {
+        const latest = uploadedDocs[uploadedDocs.length - 1];
+        const medNames = (latest.extractions?.medications || []).map(m => m.name || m.drug).filter(Boolean);
+        const medList = medNames.length > 0 ? medNames.join(', ') : '';
+        if (lang === 'hi') {
+          return `दस्तावेज सफलतापूर्वक डिजिटाइज़ हुआ: ${latest.fileName}। ${medList ? `मिली दवाएं: ${medList}। ` : ''}ओपीडी पर्चा देखने के लिए 'समाप्त करें' पर स्पर्श करें।`;
+        }
+        if (lang === 'kn') {
+          return `ದಾಖಲೆಯನ್ನು ಯಶಸ್ವಿಯಾಗಿ ಡಿಜಿಟೈಸ್ ಮಾಡಲಾಗಿದೆ: ${latest.fileName}. ${medList ? `ಪತ್ತೆಯಾದ ಔಷಧಿಗಳು: ${medList}. ` : ''}ವರದಿ ನೋಡಲು ಮುಕ್ತಾಯ ಬಟನ್ ಒತ್ತಿ.`;
+        }
+        return `Document successfully digitized: ${latest.fileName}. ${medList ? `Detected medications: ${medList}. ` : ''}Tap Finish to view your prescription report.`;
+      }
+      if (lang === 'hi') {
+        return "चिकित्सा दस्तावेज अपलोड करें। पुराने पर्चे, रक्त परीक्षण रिपोर्ट या डिस्चार्ज समरी स्कैन अथवा अपलोड करें। यदि कोई दस्तावेज नहीं है तो आगे बढ़ सकते हैं।";
+      }
+      if (lang === 'kn') {
+        return "ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. ಹಿಂದಿನ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅಥವಾ ಲ್ಯಾಬ್ ವರದಿಗಳನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ಅಥವಾ ನೇರವಾಗಿ ಒಪಿಡಿ ಟೋಕನ್‌ಗೆ ಮುಂದುವರಿಯಿರಿ.";
+      }
+      return "Medical Document Upload. Scan or upload past prescriptions, blood test reports, or discharge summaries. Tap browse or take a photo, or tap Skip to proceed to your OPD token.";
     }
+
     if (targetStep === 'DONE') {
-      return lang === 'hi'
-        ? "आपकी ओपीडी परामर्श प्रक्रिया पूर्ण हो चुकी है। आपका डिजिटल केस समरी तैयार है।"
-        : lang === 'kn'
-        ? "ನಿಮ್ಮ ಒಪಿಡಿ ಸಮಾಲೋಚನೆ ಪ್ರಕ್ರಿಯೆ ಪೂರ್ಣಗೊಂಡಿದೆ. ನಿಮ್ಮ ಡಿಜಿಟಲ್ ಕೇಸ್ ಸಾರಾಂಶ ಸಿದ್ಧವಾಗಿದೆ."
-        : "Your OPD consultation entry process is complete. Your digital intake summary is ready for the physician.";
+      const tokenMsg = opdToken ? `${opdToken}` : '';
+      const allExtractedMeds = uploadedDocs.flatMap(d => d.extractions?.medications || []);
+      const medNames = allExtractedMeds.map(m => m.name || m.drug).filter(Boolean);
+      const medSummary = medNames.length > 0 ? medNames.join(', ') : '';
+
+      if (lang === 'hi') {
+        return `आपकी ओपीडी परामर्श प्रक्रिया पूर्ण हो चुकी है। आपका टोकन नंबर ${tokenMsg} है। ${medSummary ? `अपलोड किए गए पर्चे से डिजिटाइज़्ड दवाएं: ${medSummary}। ` : ''}कृपया प्रतीक्षालय में बैठें।`;
+      }
+      if (lang === 'kn') {
+        return `ನಿಮ್ಮ ಒಪಿಡಿ ಸಮಾಲೋಚನೆ ಪ್ರಕ್ರಿಯೆ ಪೂರ್ಣಗೊಂಡಿದೆ. ನಿಮ್ಮ ಟೋಕನ್ ಸಂಖ್ಯೆ ${tokenMsg}. ${medSummary ? `ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್‌ನಿಂದ ಡಿಜಿಟೈಸ್ ಮಾಡಿದ ಔಷಧಿಗಳು: ${medSummary}. ` : ''}ದಯವಿಟ್ಟು ವೇಟಿಂಗ್ ಏರಿಯಾದಲ್ಲಿ ಕುಳಿತುಕೊಳ್ಳಿ.`;
+      }
+      return `Your OPD consultation intake is complete! Your OPD Token Number is ${tokenMsg}. ${medSummary ? `Reconciled medications from your uploaded prescription: ${medSummary}. ` : ''}Please take your seat in Waiting Area B.`;
     }
+
     return "";
   };
 
   const handleReadPageAloud = (customText) => {
+    unlockAudio();
+
     if (isSpeakingPage) {
       defaultVoiceProvider.cancelSpeech();
       setIsSpeakingPage(false);
       return;
     }
 
-    const textToRead = customText || getPageAuditableText(step);
+    const targetScreen = activeView === 'HOSPITALS' ? 'HOSPITALS' : step;
+    const textToRead = customText || getPageAuditableText(targetScreen);
     if (!textToRead) return;
 
     setIsSpeakingPage(true);
@@ -453,7 +539,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
       id: `p-${Date.now()}`,
       abha_id: dataToSave.abha_id || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
       full_name: dataToSave.full_name.trim(),
-      age: parseInt(dataToSave.age, 10) || 30,
+      age: Math.max(1, Math.min(125, Math.abs(parseInt(dataToSave.age, 10) || 30))),
       gender: dataToSave.gender || 'Male',
       phone: dataToSave.phone || phoneInput || '',
       blood_group: dataToSave.blood_group || 'O+',
@@ -520,24 +606,46 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
         );
         return;
       }
-      if (!newPatientForm.full_name?.trim() || !newPatientForm.age) {
+      if (!newPatientForm.full_name?.trim()) {
         setRegValidationError(
           language === 'hi'
-            ? 'कृपया मरीज का नाम और आयु दर्ज करें।'
+            ? 'कृपया मरीज का पूरा नाम दर्ज करें।'
             : language === 'kn'
-            ? 'ದಯವಿಟ್ಟು ರೋಗಿಯ ಹೆಸರು ಮತ್ತು ವಯಸ್ಸನ್ನು ನಮೂದಿಸಿ.'
-            : 'Please enter patient full name and age.'
+            ? 'ದಯವಿಟ್ಟು ರೋಗಿಯ ಪೂರ್ಣ ಹೆಸರನ್ನು ನಮೂದಿಸಿ.'
+            : 'Please enter patient full name.'
+        );
+        return;
+      }
+      const parsedAge = parseInt(newPatientForm.age, 10);
+      if (isNaN(parsedAge) || parsedAge <= 0 || parsedAge > 125) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'कृपया 1 से 125 वर्ष के बीच की वैध आयु दर्ज करें (ऋणात्मक संख्या मान्य नहीं है)।'
+            : language === 'kn'
+            ? 'ದಯವಿಟ್ಟು 1 ರಿಂದ 125 ವರ್ಷಗಳ ನಡುವಿನ ಮಾನ್ಯ ವಯಸ್ಸನ್ನು ನಮೂದಿಸಿ (ಋಣಾತ್ಮಕ ಸಂಖ್ಯೆ ಅನುಮತಿಸಲಾಗುವುದಿಲ್ಲ).'
+            : 'Please enter a valid age between 1 and 125 years (negative numbers are not permitted).'
         );
         return;
       }
     } else if (regMethod === 'manual') {
-      if (!newPatientForm.full_name?.trim() || !newPatientForm.age) {
+      if (!newPatientForm.full_name?.trim()) {
         setRegValidationError(
           language === 'hi'
-            ? 'कृपया मरीज का नाम और आयु दर्ज करें।'
+            ? 'कृपया मरीज का पूरा नाम दर्ज करें।'
             : language === 'kn'
-            ? 'ದಯವಿಟ್ಟು ರೋಗಿಯ ಹೆಸರು ಮತ್ತು ವಯಸ್ಸನ್ನು ನಮೂದಿಸಿ.'
-            : 'Please enter patient full name and age.'
+            ? 'ದಯವಿಟ್ಟು ರೋಗಿಯ ಪೂರ್ಣ ಹೆಸರನ್ನು ನಮೂದಿಸಿ.'
+            : 'Please enter patient full name.'
+        );
+        return;
+      }
+      const parsedAge = parseInt(newPatientForm.age, 10);
+      if (isNaN(parsedAge) || parsedAge <= 0 || parsedAge > 125) {
+        setRegValidationError(
+          language === 'hi'
+            ? 'कृपया 1 से 125 वर्ष के बीच की वैध आयु दर्ज करें (ऋणात्मक संख्या मान्य नहीं है)।'
+            : language === 'kn'
+            ? 'ದಯವಿಟ್ಟು 1 ರಿಂದ 125 ವರ್ಷಗಳ ನಡುವಿನ ಮಾನ್ಯ ವಯಸ್ಸನ್ನು ನಮೂದಿಸಿ (ಋಣಾತ್ಮಕ ಸಂಖ್ಯೆ ಅನುಮತಿಸಲಾಗುವುದಿಲ್ಲ).'
+            : 'Please enter a valid age between 1 and 125 years (negative numbers are not permitted).'
         );
         return;
       }
@@ -1608,8 +1716,24 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
                             </label>
                             <input
                               type="number"
+                              min="1"
+                              max="125"
                               value={newPatientForm.age}
-                              onChange={(e) => setNewPatientForm({ ...newPatientForm, age: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (['-', '+', 'e', 'E', '.'].includes(e.key)) {
+                                  e.preventDefault();
+                                }
+                              }}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                if (!raw) {
+                                  setNewPatientForm({ ...newPatientForm, age: '' });
+                                  return;
+                                }
+                                const val = parseInt(raw, 10);
+                                if (val > 125) return;
+                                setNewPatientForm({ ...newPatientForm, age: val.toString() });
+                              }}
                               placeholder="e.g. 54"
                               className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
                             />
@@ -1681,8 +1805,24 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
                         </label>
                         <input
                           type="number"
+                          min="1"
+                          max="125"
                           value={newPatientForm.age}
-                          onChange={(e) => setNewPatientForm({ ...newPatientForm, age: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (['-', '+', 'e', 'E', '.'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9]/g, '');
+                            if (!raw) {
+                              setNewPatientForm({ ...newPatientForm, age: '' });
+                              return;
+                            }
+                            const val = parseInt(raw, 10);
+                            if (val > 125) return;
+                            setNewPatientForm({ ...newPatientForm, age: val.toString() });
+                          }}
                           placeholder="e.g. 54"
                           className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
                         />
@@ -1970,7 +2110,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
                   ) : (
                     <>
                       <Volume2 className="w-5 h-5" />
-                      <span>{language === 'hi' ? 'पुनः सुनें' : language === 'kn' ? 'ಮತ್ತे आलिसि' : 'Replay Audio'}</span>
+                      <span>{language === 'hi' ? 'पुनः सुनें' : language === 'kn' ? 'ಮತ್ತೆ ಆಲಿಸಿ' : 'Replay Audio'}</span>
                     </>
                   )}
                 </button>
@@ -2537,9 +2677,9 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
         {/* STEP 7: SESSION COMPLETED, OPD TOKEN & PRESCRIBED REPORT DATA */}
         {/* ------------------------------------------------------------------ */}
         {step === 'DONE' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 text-center max-w-4xl mx-auto w-full fade-in space-y-8">
+          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 text-center max-w-4xl mx-auto w-full fade-in space-y-8 print:p-0 print:border-none print:shadow-none print:space-y-0">
             
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center print:hidden">
               <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4 shadow-sm">
                 <CheckCircle2 className="w-12 h-12" />
               </div>
@@ -2552,8 +2692,8 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
               </p>
             </div>
 
-            {/* Token Badge */}
-            <div className="bg-gradient-to-tr from-sky-50 to-teal-50 border-2 border-sky-200 rounded-3xl p-6 max-w-md mx-auto shadow-sm">
+            {/* Token Badge - Print Hidden so the official report header is on top */}
+            <div className="bg-gradient-to-tr from-sky-50 to-teal-50 border-2 border-sky-200 rounded-3xl p-6 max-w-md mx-auto shadow-sm print:hidden">
               <div className="text-xs uppercase font-black text-sky-600 tracking-wider mb-1">
                 {t('opdTokenLabel')}
               </div>
@@ -2568,7 +2708,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
             {/* ---------------------------------------------------------------- */}
             {/* MEDICAL PRESCRIBED REPORT DATA CARD */}
             {/* ---------------------------------------------------------------- */}
-            <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-left shadow-sm space-y-6">
+            <div id="kiosk-printable-report" className="printable-report-card bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-left shadow-sm space-y-6 print:border print:border-slate-300 print:bg-white print:p-6 print:rounded-2xl print:shadow-none print:space-y-4">
               
               {/* Header Banner */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
@@ -2651,11 +2791,31 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                      {(summaryReportData?.summary?.prescribed_report?.prescribed_medications || [
-                        { name: 'Triphala Churna', dosage: '3g (1/2 tsp)', frequency: 'Twice daily', instructions: 'Take with warm water' },
-                        { name: 'Shunthi Powder', dosage: '2g', frequency: 'Before meals', instructions: 'Take for Agni Deepana' },
-                        { name: 'Sanjivani Vati', dosage: '1 tablet', frequency: 'Morning & Evening', instructions: 'Digestive Pachana support' }
-                      ]).map((rx, idx) => (
+                      {(() => {
+                        const fromSummary = summaryReportData?.summary?.prescribed_report?.prescribed_medications || [];
+                        const fromUploads = uploadedDocs.flatMap(d => (d.extractions?.medications || []).map(m => ({
+                          name: m.name || m.drug,
+                          dosage: m.dosage || 'As directed',
+                          frequency: m.frequency || 'Daily',
+                          instructions: 'Reconciled from uploaded patient prescription'
+                        })));
+                        const combined = [...fromUploads, ...fromSummary];
+                        const list = combined.length > 0 ? combined : [
+                          { name: 'Triphala Churna', dosage: '3g (1/2 tsp)', frequency: 'Twice daily', instructions: 'Take with warm water' },
+                          { name: 'Shunthi Powder', dosage: '2g', frequency: 'Before meals', instructions: 'Take for Agni Deepana' },
+                          { name: 'Sanjivani Vati', dosage: '1 tablet', frequency: 'Morning & Evening', instructions: 'Digestive Pachana support' }
+                        ];
+                        const seen = new Set();
+                        const unique = [];
+                        for (const item of list) {
+                          const k = (item.name || '').toLowerCase().trim();
+                          if (k && !seen.has(k)) {
+                            seen.add(k);
+                            unique.push(item);
+                          }
+                        }
+                        return unique;
+                      })().map((rx, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/80">
                           <td className="p-3 font-bold text-slate-900 flex items-center space-x-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
@@ -2670,6 +2830,31 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
                   </table>
                 </div>
               </div>
+
+              {/* Digitized Clinical Labs & Patient Uploads (if available) */}
+              {uploadedDocs.some(d => d.extractions?.lab_results?.length > 0) && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center">
+                    <FileText className="w-4 h-4 mr-1.5 text-sky-600" />
+                    {language === 'hi' ? 'अपलोड किए गए पर्चे से लैब परीक्षण' : language === 'kn' ? 'ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ ಲ್ಯಾಬ್ ಪರೀಕ್ಷೆಗಳು' : 'Digitized Lab Analytes (From Uploaded Document)'}
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {uploadedDocs.flatMap(d => d.extractions?.lab_results || []).map((lab, lIdx) => (
+                      <div key={lIdx} className="bg-white p-3 rounded-xl border border-slate-200 text-xs">
+                        <div className="font-bold text-slate-900">{lab.test}</div>
+                        <div className="text-sky-700 font-mono font-extrabold text-sm mt-0.5">{lab.value}</div>
+                        {lab.flag && (
+                          <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded inline-block mt-1 ${
+                            lab.abnormal || lab.flag === 'HIGH' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {lab.flag}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Diet, Lifestyle & Yoga Therapy */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2695,7 +2880,7 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
               </div>
 
               {/* Report Actions Banner */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 print:hidden">
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -2713,11 +2898,11 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
 
             </div>
 
-            <p className="text-slate-600 text-sm font-medium max-w-lg mx-auto">
+            <p className="text-slate-600 text-sm font-medium max-w-lg mx-auto print:hidden">
               {t('proceedInstructions')}
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center print:hidden">
               <button
                 onClick={() => {
                   setStep('LANG');

@@ -29,7 +29,7 @@ class ProgressInfo(BaseModel):
 
 class PatientCreate(BaseModel):
     full_name: str
-    age: int
+    age: int = Field(..., ge=1, le=125, description="Patient age in years (1 to 125)")
     gender: str
     phone: Optional[str] = None
     abha_id: Optional[str] = None
@@ -47,7 +47,7 @@ class PatientCreate(BaseModel):
 class Patient(BaseModel):
     id: str
     full_name: str
-    age: int
+    age: int = Field(..., ge=1, le=125, description="Patient age in years (1 to 125)")
     gender: str
     phone: Optional[str] = None
     abha_id: Optional[str] = None
@@ -244,4 +244,50 @@ class OtpVerifyResponse(BaseModel):
     success: bool = True
     verified: bool = False
     message: str
+
+
+# ==============================================================================
+# MEITY BHASHINI MULTILINGUAL VOICE PIPELINE SCHEMAS
+# ==============================================================================
+class BhashiniAsrRequest(BaseModel):
+    audioContent: str
+    language: str = "hi"
+    audioFormat: Optional[str] = "wav"
+
+class BhashiniAsrResponse(BaseModel):
+    success: bool = True
+    transcript: str
+    language: str
+    confidence: Optional[float] = 0.94
+    latency_ms: Optional[int] = None
+    source: str = "bhashini_indic_engine"
+    serviceId: Optional[str] = None
+
+class BhashiniTtsRequest(BaseModel):
+    text: str
+    language: str = "hi"
+    gender: Optional[str] = "female"
+
+class BhashiniTtsResponse(BaseModel):
+    success: bool = True
+    audioContent: Optional[str] = None
+    text: Optional[str] = None
+    audioFormat: str = "wav"
+    language: str
+    gender: Optional[str] = "female"
+    latency_ms: Optional[int] = None
+    source: str = "bhashini_indic_engine"
+    serviceId: Optional[str] = None
+
+class BhashiniTranslateRequest(BaseModel):
+    text: str
+    sourceLanguage: str = "hi"
+    targetLanguage: str = "en"
+
+class BhashiniTranslateResponse(BaseModel):
+    success: bool = True
+    translatedText: str
+    sourceLanguage: str
+    targetLanguage: str
+    source: str = "bhashini_nmt_indic"
 

@@ -58,3 +58,70 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ==========================================================================
+   Print Styles for MediKiosk Prescription & Medical Reports
+   ========================================================================== */
+@media print {
+  /* 1. Completely hide all headers, footers, navigation, buttons, and chrome */
+  header,
+  nav,
+  button,
+  .print\:hidden,
+  .no-print,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* 2. Reset fixed and sticky positioning to prevent overlapping across pages */
+  *,
+  *::before,
+  *::after {
+    position: static !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* 3. Page and container setup */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  main, .min-h-screen {
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 4. Report container styling */
+  .printable-report-card {
+    border: 1.5pt solid #cbd5e1 !important;
+    border-radius: 12pt !important;
+    padding: 16pt !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* 5. Prevent breaks inside table rows and critical summary blocks */
+  table, tr, td, th, .avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  @page {
+    margin: 1cm;
+    size: auto;
+  }
+}

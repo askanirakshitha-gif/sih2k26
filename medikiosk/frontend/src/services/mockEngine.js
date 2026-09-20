@@ -1170,24 +1170,34 @@ export const StandaloneMockEngine = {
 
   uploadDocument: (formData) => {
     const docId = `doc-${Date.now()}`;
+    const file = formData?.get ? formData.get('document') || formData.get('file') : null;
+    const fileName = file?.name || 'Uploaded_Prescription.pdf';
+    
+    // Provide realistic extracted medications from prescription
+    const medications = [
+      { name: 'Telmisartan', dosage: '40mg', frequency: 'Once daily morning' },
+      { name: 'Atorvastatin', dosage: '20mg', frequency: 'Once daily night' }
+    ];
+    
     const newDoc = {
       id: docId,
-      file_name: 'Uploaded_Prescription.pdf',
+      file_name: fileName,
       document_type: 'Prescription',
       document_date: new Date().toISOString().split('T')[0],
       extractions: {
-        diagnoses: ['Clinical document digitized via OCR'],
-        medications: [
-          { name: 'Standard OPD Medication', dosage: 'As directed', frequency: 'Twice daily' }
-        ],
-        lab_results: []
+        diagnoses: ['Clinical prescription digitized via OCR AI'],
+        medications: medications,
+        lab_results: [
+          { test: 'Glycated Hemoglobin (HbA1c)', analyte: 'hba1c', value: '7.9 %', unit: '%', abnormal: true, flag: 'HIGH' },
+          { test: 'Fasting Blood Glucose (FBG)', analyte: 'fasting blood glucose', value: '154 mg/dL', unit: 'mg/dL', abnormal: true, flag: 'HIGH' }
+        ]
       }
     };
     localDocuments.push(newDoc);
     return {
       success: true,
       documentId: docId,
-      fileName: 'Uploaded_Prescription.pdf',
+      fileName: fileName,
       extractions: newDoc.extractions
     };
   },
@@ -1464,7 +1474,25 @@ export const StandaloneMockEngine = {
       entriesCount: 4,
       resources: ['Patient', 'Encounter', 'Condition', 'Observation']
     }
-  })
+  }),
+
+  sendSmsReminder: (payload) => {
+    const phone = payload?.phoneNumber || '+91 93345 90992';
+    const patientName = payload?.patientName || 'Patient';
+    return {
+      success: true,
+      message: `SMS reminder dispatched to ${phone}`,
+      mocked: true,
+      transactionId: `SMS-TX-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      timestamp: new Date().toISOString(),
+      details: {
+        recipient: phone,
+        patientName: patientName,
+        gateway: 'MediKiosk SMS Gateway (Mock Dispatch)',
+        status: 'DELIVERED_TO_HANDSET'
+      }
+    };
+  }
 };
 
 const _mockOtpStore = new Map();

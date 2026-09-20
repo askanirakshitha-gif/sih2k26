@@ -140,7 +140,7 @@ export const KioskService = {
     try {
       const res = await api.post('/documents/upload', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': undefined
         }
       });
       return res.data;
@@ -237,12 +237,81 @@ export const DoctorService = {
   sendSmsReminder: async (payload) => {
     try {
       const res = await api.post('/doctor/send-visit-reminder', payload);
+      if (res.data && res.data.success) {
+        return res.data;
+      }
+      console.warn('[MediKiosk API] Backend SMS gateway returned failure, using local mock engine fallback:', res.data?.message);
+      return StandaloneMockEngine.sendSmsReminder(payload);
+    } catch (err) {
+      console.warn('[MediKiosk API] sendSmsReminder unavailable, using local mock engine:', err?.message);
+      return StandaloneMockEngine.sendSmsReminder(payload);
+    }
+  }
+};
+
+export const BhashiniService = {
+  getStatus: async () => {
+    try {
+      const res = await api.get('/bhashini/status');
       return res.data;
     } catch (err) {
-      console.warn('[MediKiosk API] sendSmsReminder failed:', err?.message);
-      return { success: false, message: err?.message };
+      console.warn('[Bhashini API] /bhashini/status unreachable:', err?.message);
+      return {
+        service: 'MeitY Bhashini NLTM',
+        live_gateway_configured: false,
+        provider_mode: 'Bhashini Indic AI Engine (Simulated)'
+      };
+    }
+  },
+
+  synthesizeSpeech: async (text, language = 'hi', gender = 'female') => {
+    try {
+      const res = await api.post('/bhashini/tts', {
+        text,
+        language,
+        gender
+      });
+      return res.data;
+    } catch (err) {
+      console.warn('[Bhashini API] /bhashini/tts error:', err?.message);
+      return null;
+    }
+  },
+
+  getStreamUrl: (text, language = 'hi', gender = 'female') => {
+    const encodedText = encodeURIComponent(text.trim());
+    const base = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    return `${base}/bhashini/tts?text=${encodedText}&language=${encodeURIComponent(language)}&gender=${encodeURIComponent(gender)}`;
+  },
+
+  transcribeSpeech: async (audioContent, language = 'hi', audioFormat = 'wav') => {
+    try {
+      const res = await api.post('/bhashini/asr', {
+        audioContent,
+        language,
+        audioFormat
+      });
+      return res.data;
+    } catch (err) {
+      console.warn('[Bhashini API] /bhashini/asr error:', err?.message);
+      return null;
+    }
+  },
+
+  translateText: async (text, sourceLanguage = 'hi', targetLanguage = 'en') => {
+    try {
+      const res = await api.post('/bhashini/translate', {
+        text,
+        sourceLanguage,
+        targetLanguage
+      });
+      return res.data;
+    } catch (err) {
+      console.warn('[Bhashini API] /bhashini/translate error:', err?.message);
+      return { success: true, translatedText: text, source: 'passthrough' };
     }
   }
 };
 
 export default api;
+
