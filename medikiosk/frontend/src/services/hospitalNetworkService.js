@@ -7,6 +7,7 @@
  * 3. Cross-Hospital Smart Contract Data Transfer Requests & In-Memory Shared Ledger
  * 4. DPDP Act 2023 Real-Time Revocation & Cryptographic SHA-256 Verification
  */
+import { StandaloneMockEngine } from './mockEngine';
 
 // Helper to compute client-side SHA-256 cryptographic hash
 export async function computeSha256(str) {
@@ -674,19 +675,128 @@ export const HospitalNetworkService = {
     return DEMO_PATIENTS;
   },
 
-  // Get Patient Demographics by ABHA ID
+  // Get All Patients: Combines pre-seeded Demo Directory, Kiosk Walk-in Registrations, and live Walk-in Patients
+  getAllPatients: () => {
+    const list = [...DEMO_PATIENTS];
+
+    // 1. Load from StandaloneMockEngine (includes kiosk registrations)
+    try {
+      if (StandaloneMockEngine && typeof StandaloneMockEngine.getPatients === 'function') {
+        const res = StandaloneMockEngine.getPatients();
+        if (res?.success && Array.isArray(res.patients)) {
+          res.patients.forEach(p => {
+            const abha = (p.abha_id || p.abhaId || '').trim();
+            if (abha && !list.some(existing => existing.abhaId === abha)) {
+              list.push({
+                abhaId: abha,
+                name: p.full_name || p.name || 'Walk-In Patient',
+                age: p.age || 35,
+                gender: p.gender || 'Male',
+                bloodGroup: p.blood_group || p.bloodGroup || 'O+',
+                phone: p.phone || '+91 98000 00000',
+                address: p.address || 'Kiosk Walk-In Registration',
+                abdmLinkedDate: 'Registered at Kiosk (Live)',
+                isKioskRegistered: true,
+                photo: p.photo || (p.gender === 'Female'
+                  ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'
+                  : 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80')
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading mock engine patients in hospital network:', e);
+    }
+
+    // 2. Load from localStorage for persistent walk-ins
+    try {
+      const saved = localStorage.getItem('medikiosk_walkin_patients');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(p => {
+            const abha = (p.abhaId || p.abha_id || '').trim();
+            if (abha && !list.some(existing => existing.abhaId === abha)) {
+              list.push({
+                ...p,
+                abhaId: abha,
+                name: p.name || p.full_name || 'Walk-In Patient',
+                age: p.age || 35,
+                gender: p.gender || 'Male',
+                bloodGroup: p.bloodGroup || p.blood_group || 'O+',
+                isCustomWalkin: true
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {}
+
+    return list;
+  },
+
+  // Register a new walk-in patient from Hospital Transfer or Kiosk
+  registerWalkinPatient: (patientData) => {
+    const abhaId = (patientData.abhaId || patientData.abha_id || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`).trim();
+    const newPatient = {
+      abhaId,
+      name: (patientData.name || patientData.full_name || 'Walk-In Patient').trim(),
+      age: parseInt(patientData.age, 10) || 35,
+      gender: patientData.gender || 'Male',
+      bloodGroup: patientData.bloodGroup || patientData.blood_group || 'B+',
+      phone: patientData.phone || '+91 98000 00000',
+      address: patientData.address || 'Hospital Walk-in Registration',
+      abdmLinkedDate: 'Registered Today (ABDM Linked)',
+      isKioskRegistered: true,
+      photo: patientData.photo || (patientData.gender === 'Female'
+        ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+        : 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80')
+    };
+
+    // Save to localStorage
+    try {
+      const saved = localStorage.getItem('medikiosk_walkin_patients');
+      const list = saved ? JSON.parse(saved) : [];
+      const updated = [newPatient, ...list.filter(p => (p.abhaId || p.abha_id) !== abhaId)];
+      localStorage.setItem('medikiosk_walkin_patients', JSON.stringify(updated));
+    } catch (e) {}
+
+    // Register in StandaloneMockEngine so Doctor and Kiosk see this patient
+    try {
+      if (StandaloneMockEngine && typeof StandaloneMockEngine.registerPatient === 'function') {
+        StandaloneMockEngine.registerPatient({
+          abha_id: newPatient.abhaId,
+          full_name: newPatient.name,
+          age: newPatient.age,
+          gender: newPatient.gender,
+          blood_group: newPatient.bloodGroup,
+          phone: newPatient.phone
+        });
+      }
+    } catch (e) {}
+
+    notifyListeners();
+    return newPatient;
+  },
+
+  // Get Patient Demographics by ABHA ID (Searches all directory + walk-in patients)
   getPatientByAbha: (abhaId) => {
     const clean = (abhaId || '').trim();
-    return DEMO_PATIENTS.find(p => p.abhaId === clean) || {
-      abhaId: clean || '91-2345-6789-0123',
-      name: 'Ramesh Sharma',
-      age: 52,
+    const all = HospitalNetworkService.getAllPatients();
+    const found = all.find(p => p.abhaId === clean || (p.abha_id && p.abha_id === clean));
+    if (found) return found;
+
+    return {
+      abhaId: clean || '91-0000-0000-0000',
+      name: 'Walk-In Patient',
+      age: 35,
       gender: 'Male',
       bloodGroup: 'B+',
-      phone: '+91 98765 43210',
-      address: 'Sector 4, R.K. Puram, New Delhi',
-      abdmLinkedDate: '12 Jan 2024',
-      photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+      phone: '+91 98000 00000',
+      address: 'Walk-In Registration',
+      abdmLinkedDate: 'Active ABDM Session',
+      photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
     };
   },
 
@@ -699,8 +809,48 @@ export const HospitalNetworkService = {
   getSourceHospitalRecords: (sourceHospitalId, abhaId) => {
     const cleanAbha = (abhaId || '').trim();
     const hospitalRecords = HOSPITAL_CLINICAL_ARCHIVE[sourceHospitalId] || {};
-    const patientRecords = hospitalRecords[cleanAbha] || hospitalRecords['91-2345-6789-0123'] || [];
-    return patientRecords;
+    
+    // Check if static records exist in archive
+    if (hospitalRecords[cleanAbha] && hospitalRecords[cleanAbha].length > 0) {
+      return hospitalRecords[cleanAbha];
+    }
+
+    // Otherwise, generate authentic ABDM FHIR clinical records for this specific patient
+    const patient = HospitalNetworkService.getPatientByAbha(cleanAbha);
+    const sourceHosp = REGISTERED_HOSPITALS.find(h => h.id === sourceHospitalId) || REGISTERED_HOSPITALS[0];
+
+    return [
+      {
+        recordId: `REC-${(sourceHosp.code || 'HOSP').replace(/-/g, '')}-${Date.now()}-01`,
+        date: '14 Sep 2026',
+        category: 'Prescriptions',
+        facility: sourceHosp.name,
+        doctor: `Dr. ${sourceHosp.department.split(' ')[0]} Specialist, MD`,
+        diagnosis: `Clinical Consultation at ${sourceHosp.name} (${patient.gender}, ${patient.age}y)`,
+        summary: `Patient ${patient.name} attended clinical OPD consultation. Structured history, clinical examination, and medication therapy initiated under ABDM consent.`,
+        medications: [
+          { name: 'Pantoprazole Gastro-Resistant', dosage: '40mg', freq: 'Once daily before breakfast', duration: '14 days' },
+          { name: 'Paracetamol', dosage: '650mg', freq: 'SOS as needed for discomfort', duration: '5 days' },
+          { name: 'Essential Vitamin Complex & Zinc', dosage: '1 Capsule', freq: 'Once daily post lunch', duration: '30 days' }
+        ],
+        vitals: { bp: '124/82 mmHg', pulse: '76 bpm', spo2: '99%', temp: '98.4 F', weight: '68 kg' },
+        sha256: '0x' + Math.random().toString(16).substring(2, 10).repeat(8),
+        fhirBundleId: `bundle-dynamic-${cleanAbha.replace(/-/g, '')}`
+      },
+      {
+        recordId: `REC-${(sourceHosp.code || 'HOSP').replace(/-/g, '')}-${Date.now()}-02`,
+        date: '12 Sep 2026',
+        category: 'Lab Reports',
+        facility: `${sourceHosp.name} Central Diagnostic Pathology`,
+        doctor: 'Dr. Diagnostic Pathologist In-Charge',
+        diagnosis: 'Complete Diagnostic Blood & Metabolic Profile',
+        summary: `Comprehensive diagnostic lab evaluation completed for ${patient.name} (Blood Group: ${patient.bloodGroup || 'B+'}).`,
+        medications: [],
+        vitals: { hemoglobin: '13.8 g/dL', wbc: '6,900 /uL', platelets: '240,000 /uL', bloodSugarFasting: '94 mg/dL' },
+        sha256: '0x' + Math.random().toString(16).substring(2, 10).repeat(8),
+        fhirBundleId: `bundle-lab-${cleanAbha.replace(/-/g, '')}`
+      }
+    ];
   },
 
   // Step 4: Initiate Smart Contract Data Request from Hospital A to Hospital B
@@ -716,10 +866,15 @@ export const HospitalNetworkService = {
     const requestId = `cr-${Date.now()}`;
     const generatedOtp = '123456'; // Standard simulated ABDM OTP for seamless demo
 
+    const patient = HospitalNetworkService.getPatientByAbha(abhaId);
+    const resolvedPatientName = (patientName && patientName !== 'Ramesh Sharma') 
+      ? patientName 
+      : (patient.name || 'Walk-In Patient');
+
     const newRequest = {
       requestId,
       abhaId,
-      patientName: patientName || 'Ramesh Sharma',
+      patientName: resolvedPatientName,
       requesterHospitalId: requesterHospital.id,
       requesterHospitalName: requesterHospital.name,
       requesterDoctor: doctorName,
@@ -740,7 +895,7 @@ export const HospitalNetworkService = {
       requestId,
       consentRequest: newRequest,
       otp: generatedOtp,
-      message: `ABDM HIE-CM consent request dispatched to ${patientName}'s registered phone for records from ${sourceHospital.name}.`
+      message: `ABDM HIE-CM consent request dispatched to ${resolvedPatientName}'s registered phone for records from ${sourceHospital.name}.`
     };
   },
 

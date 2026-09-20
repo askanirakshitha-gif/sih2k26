@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Stethoscope, AlertOctagon, CheckCircle, FileText, Send,
   Download, Eye, EyeOff, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
@@ -18,6 +18,9 @@ import {
 export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital }) {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const selectedSessionIdRef = useRef(null);
+  const draftsRef = useRef({}); // Preserves live uncommitted doctor notes and diagnosis per session
+
   const [dossier, setDossier] = useState(null);
   const [activeTab, setActiveTab] = useState('clinical'); // 'clinical' | 'ayush' | 'timeline' | 'notes'
   const [filterSystem, setFilterSystem] = useState('all'); // 'all' | 'allopathy' | 'ayush' | 'flagged'
@@ -51,8 +54,29 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
   const [currentEmergencyAlert, setCurrentEmergencyAlert] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  // Input change handlers with immediate draft persistence so typing never vanishes
+  const handleProvisionalDiagnosisChange = (val) => {
+    setProvisionalDiagnosis(val);
+    if (selectedSessionIdRef.current) {
+      draftsRef.current[selectedSessionIdRef.current] = {
+        ...(draftsRef.current[selectedSessionIdRef.current] || {}),
+        provisionalDiagnosis: val
+      };
+    }
+  };
+
+  const handlePhysicianNotesChange = (val) => {
+    setPhysicianNotes(val);
+    if (selectedSessionIdRef.current) {
+      draftsRef.current[selectedSessionIdRef.current] = {
+        ...(draftsRef.current[selectedSessionIdRef.current] || {}),
+        physicianNotes: val
+      };
+    }
+  };
+
   useEffect(() => {
-    loadSessions();
+    loadSessions(false);
     const initialUnack = getUnacknowledgedAlerts();
     setActiveAlerts(initialUnack);
     if (initialUnack.length > 0) {
@@ -64,7 +88,7 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
         if (soundEnabled) playAlertChime();
         setActiveAlerts(prev => [newAlert, ...prev.filter(a => a.sessionId !== newAlert.sessionId)]);
         setCurrentEmergencyAlert(newAlert);
-        loadSessions();
+        loadSessions(true);
         loadSessionDetail(newAlert.sessionId);
       },
       (ackId) => {
@@ -77,10 +101,11 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
       }
     );
 
+    // Poll for queue changes silently every 5 seconds without reloading active session or resetting inputs
     const timer = setInterval(() => {
-      loadSessions();
+      loadSessions(true);
       setActiveAlerts(getUnacknowledgedAlerts());
-    }, 3000);
+    }, 5000);
 
     return () => {
       unsubscribe();
@@ -88,32 +113,47 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
     };
   }, [soundEnabled]);
 
-  const loadSessions = async () => {
-    setIsLoading(true);
+  const loadSessions = async (isBackground = false) => {
+    if (!isBackground) setIsLoading(true);
     try {
       const res = await DoctorService.getSessions();
       if (res.success && res.sessions.length > 0) {
         setSessions(res.sessions);
-        if (!selectedSessionId) {
+        // Only select initial session on initial load when nothing is selected yet
+        if (!selectedSessionIdRef.current) {
           loadSessionDetail(res.sessions[0].id);
         }
       }
     } catch (err) {
       console.warn('Could not load doctor sessions:', err);
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   };
 
   const loadSessionDetail = async (id) => {
     setSelectedSessionId(id);
+    selectedSessionIdRef.current = id;
     try {
       const res = await DoctorService.getSessionDetail(id);
       if (res.success) {
         setDossier(res);
-        setProvisionalDiagnosis(res.review?.provisionalDiagnosis || res.review?.provisional_diagnosis || (res.session?.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out'));
-        setPhysicianNotes(res.review?.clinicalNotes || res.summary?.physician_notes || res.review?.prescription_notes || '');
-        setEditedHpi(res.summary?.hpi_summary || '');
+        const draft = draftsRef.current[id];
+        if (draft) {
+          setProvisionalDiagnosis(draft.provisionalDiagnosis !== undefined
+            ? draft.provisionalDiagnosis
+            : (res.review?.provisionalDiagnosis || res.review?.provisional_diagnosis || (res.session?.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out')));
+          setPhysicianNotes(draft.physicianNotes !== undefined
+            ? draft.physicianNotes
+            : (res.review?.clinicalNotes || res.summary?.physician_notes || res.review?.prescription_notes || ''));
+          setEditedHpi(draft.editedHpi !== undefined
+            ? draft.editedHpi
+            : (res.summary?.hpi_summary || ''));
+        } else {
+          setProvisionalDiagnosis(res.review?.provisionalDiagnosis || res.review?.provisional_diagnosis || (res.session?.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out'));
+          setPhysicianNotes(res.review?.clinicalNotes || res.summary?.physician_notes || res.review?.prescription_notes || '');
+          setEditedHpi(res.summary?.hpi_summary || '');
+        }
       }
     } catch (err) {
       console.error('Error loading session dossier:', err);
@@ -954,7 +994,15 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
                         <textarea
                           rows={4}
                           value={editedHpi}
-                          onChange={(e) => setEditedHpi(e.target.value)}
+                          onChange={(e) => {
+                            setEditedHpi(e.target.value);
+                            if (selectedSessionIdRef.current) {
+                              draftsRef.current[selectedSessionIdRef.current] = {
+                                ...(draftsRef.current[selectedSessionIdRef.current] || {}),
+                                editedHpi: e.target.value
+                              };
+                            }
+                          }}
                           className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-sky-500 focus:bg-white outline-none text-sm text-slate-800 transition shadow-sm print:border-none print:p-0 print:bg-transparent"
                         />
                       </div>
@@ -967,7 +1015,7 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
                         <input
                           type="text"
                           value={provisionalDiagnosis}
-                          onChange={(e) => setProvisionalDiagnosis(e.target.value)}
+                          onChange={(e) => handleProvisionalDiagnosisChange(e.target.value)}
                           placeholder="e.g. Angina Pectoris / Essential Hypertension"
                           className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:bg-white outline-none text-sm font-semibold text-slate-900 transition shadow-sm print:border-none print:p-0 print:bg-transparent"
                         />
@@ -981,7 +1029,7 @@ export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital })
                         <textarea
                           rows={5}
                           value={physicianNotes}
-                          onChange={(e) => setPhysicianNotes(e.target.value)}
+                          onChange={(e) => handlePhysicianNotesChange(e.target.value)}
                           placeholder="Enter prescription instructions, follow-up tests, or dietary advice..."
                           className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none text-sm text-slate-800 transition shadow-sm print:border-none print:p-0 print:bg-transparent"
                         />

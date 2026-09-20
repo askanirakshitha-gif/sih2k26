@@ -56,6 +56,20 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
   // Raw FHIR Bundle Modal State
   const [viewingFhirRecord, setViewingFhirRecord] = useState(null);
 
+  // Patient Selection & Directory State
+  const [allPatientsList, setAllPatientsList] = useState(() => HospitalNetworkService.getAllPatients());
+  const [patientSearchTerm, setPatientSearchTerm] = useState('');
+  const [patientFilterTab, setPatientFilterTab] = useState('all'); // 'all' | 'kiosk' | 'demo'
+  const [showWalkinForm, setShowWalkinForm] = useState(false);
+
+  // Custom Walk-in Patient Form State
+  const [walkinName, setWalkinName] = useState('');
+  const [walkinAbha, setWalkinAbha] = useState('');
+  const [walkinAge, setWalkinAge] = useState('35');
+  const [walkinGender, setWalkinGender] = useState('Male');
+  const [walkinBloodGroup, setWalkinBloodGroup] = useState('B+');
+  const [walkinPhone, setWalkinPhone] = useState('');
+
   // Live Service State
   const [ledger, setLedger] = useState([]);
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -65,6 +79,7 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
 
   // Refresh data from service
   const refreshData = () => {
+    setAllPatientsList(HospitalNetworkService.getAllPatients());
     if (!activeHospital) return;
     const currentLedger = HospitalNetworkService.getLedger();
     setLedger([...currentLedger]);
@@ -784,50 +799,288 @@ export default function HospitalDashboard({ onSwitchToKiosk, onSwitchToDoctor })
               
               {/* Left: Patient Selection */}
               <div className="lg:col-span-6 bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-4">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                  <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center text-xs">2</span>
-                  <span>Select Patient (ABHA ID):</span>
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                    <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center text-xs">2</span>
+                    <span>Select Patient (ABHA ID):</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowWalkinForm(!showWalkinForm)}
+                    className="text-xs px-2.5 py-1 rounded-xl bg-teal-600/20 hover:bg-teal-600/30 text-teal-300 border border-teal-500/30 font-bold transition flex items-center space-x-1"
+                  >
+                    <span>{showWalkinForm ? '← View Directory' : '+ Walk-In Patient'}</span>
+                  </button>
+                </div>
 
-                {/* Patient Quick Selector */}
-                <div className="space-y-2">
-                  {DEMO_PATIENTS.map((p) => {
-                    const isSelected = selectedPatientAbha === p.abhaId;
-                    return (
-                      <div
-                        key={p.abhaId}
-                        onClick={() => setSelectedPatientAbha(p.abhaId)}
-                        className={`p-3 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
-                          isSelected
-                            ? 'bg-sky-950/50 border-sky-500 text-sky-100 ring-1 ring-sky-500/50'
-                            : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={p.photo}
-                            alt={p.name}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-700"
+                {showWalkinForm ? (
+                  /* Custom Walk-In Patient Registration Form */
+                  <div className="p-4 bg-slate-950/80 border border-teal-500/40 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">
+                        Register Walk-In Patient for Transfer
+                      </span>
+                      <span className="text-[10px] text-slate-400">Live Kiosk / ABDM Sync</span>
+                    </div>
+
+                    <div className="space-y-2.5 text-xs">
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1">Full Patient Name *</label>
+                        <input
+                          type="text"
+                          value={walkinName}
+                          onChange={(e) => setWalkinName(e.target.value)}
+                          placeholder="e.g. Priya Sharma, Aarav Gupta"
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-teal-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-400 font-semibold mb-1">Age (Yrs)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="120"
+                            value={walkinAge}
+                            onChange={(e) => setWalkinAge(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-teal-500 outline-none"
                           />
-                          <div>
-                            <div className="text-sm font-bold text-white flex items-center space-x-2">
-                              <span>{p.name}</span>
-                              <span className="text-xs text-slate-400">({p.age}y, {p.gender})</span>
-                            </div>
-                            <div className="text-xs font-mono text-sky-400 mt-0.5">
-                              {p.abhaId}
-                            </div>
-                          </div>
                         </div>
-
-                        <div className="text-right text-[11px] text-slate-400">
-                          <div>Blood: <strong className="text-slate-200">{p.bloodGroup}</strong></div>
-                          <div className="text-emerald-400 font-semibold">ABDM Linked</div>
+                        <div>
+                          <label className="block text-slate-400 font-semibold mb-1">Gender</label>
+                          <select
+                            value={walkinGender}
+                            onChange={(e) => setWalkinGender(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-teal-500 outline-none"
+                          >
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-400 font-semibold mb-1">Blood Group</label>
+                          <select
+                            value={walkinBloodGroup}
+                            onChange={(e) => setWalkinBloodGroup(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-teal-500 outline-none"
+                          >
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-slate-400 font-semibold mb-1">Phone Number</label>
+                          <input
+                            type="text"
+                            value={walkinPhone}
+                            onChange={(e) => setWalkinPhone(e.target.value)}
+                            placeholder="+91 98..."
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-teal-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-slate-400 font-semibold">ABHA ID (14-Digit)</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const rnd = `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`;
+                              setWalkinAbha(rnd);
+                            }}
+                            className="text-[10px] text-teal-400 hover:text-teal-300 underline font-mono"
+                          >
+                            Auto-Generate ABHA
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={walkinAbha}
+                          onChange={(e) => setWalkinAbha(e.target.value)}
+                          placeholder="e.g. 91-4455-6677-8899"
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-teal-300 font-mono focus:border-teal-500 outline-none"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!walkinName.trim()) {
+                            alert('Please enter patient name');
+                            return;
+                          }
+                          const autoAbha = walkinAbha.trim() || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`;
+                          const created = HospitalNetworkService.registerWalkinPatient({
+                            name: walkinName.trim(),
+                            abhaId: autoAbha,
+                            age: parseInt(walkinAge, 10) || 35,
+                            gender: walkinGender,
+                            bloodGroup: walkinBloodGroup,
+                            phone: walkinPhone.trim() || '+91 98000 00000'
+                          });
+                          setSelectedPatientAbha(created.abhaId);
+                          setAllPatientsList(HospitalNetworkService.getAllPatients());
+                          setShowWalkinForm(false);
+                          setWalkinName('');
+                          setWalkinAbha('');
+                          setActionNotice(`✓ Walk-in patient ${created.name} registered and selected for inter-hospital transfer!`);
+                          setTimeout(() => setActionNotice(null), 5000);
+                        }}
+                        className="w-full py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg transition mt-2 flex items-center justify-center space-x-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Add Walk-In Patient & Select</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Search & Filter Controls */}
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={patientSearchTerm}
+                          onChange={(e) => setPatientSearchTerm(e.target.value)}
+                          placeholder="Search patient name, ABHA ID (91-...), or phone..."
+                          className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 transition font-medium"
+                        />
+                        {patientSearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setPatientSearchTerm('')}
+                            className="absolute right-2.5 top-2 text-xs text-slate-500 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Filter Chips */}
+                      <div className="flex items-center space-x-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setPatientFilterTab('all')}
+                          className={`px-2.5 py-0.5 rounded-lg border font-semibold transition ${
+                            patientFilterTab === 'all'
+                              ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                              : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          All ({allPatientsList.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPatientFilterTab('kiosk')}
+                          className={`px-2.5 py-0.5 rounded-lg border font-semibold transition ${
+                            patientFilterTab === 'kiosk'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          Kiosk Walk-Ins ({allPatientsList.filter(p => p.isKioskRegistered || p.isCustomWalkin).length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPatientFilterTab('demo')}
+                          className={`px-2.5 py-0.5 rounded-lg border font-semibold transition ${
+                            patientFilterTab === 'demo'
+                              ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                              : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          Pre-loaded Profiles ({allPatientsList.filter(p => !p.isKioskRegistered && !p.isCustomWalkin).length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Patient Quick Selector List */}
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {allPatientsList
+                        .filter((p) => {
+                          const term = patientSearchTerm.toLowerCase().trim();
+                          const matchesSearch = !term ||
+                            (p.name && p.name.toLowerCase().includes(term)) ||
+                            (p.abhaId && p.abhaId.toLowerCase().includes(term)) ||
+                            (p.phone && p.phone.toLowerCase().includes(term));
+
+                          if (!matchesSearch) return false;
+                          if (patientFilterTab === 'kiosk') return p.isKioskRegistered || p.isCustomWalkin;
+                          if (patientFilterTab === 'demo') return !p.isKioskRegistered && !p.isCustomWalkin;
+                          return true;
+                        })
+                        .map((p) => {
+                          const isSelected = selectedPatientAbha === p.abhaId;
+                          return (
+                            <div
+                              key={p.abhaId}
+                              onClick={() => setSelectedPatientAbha(p.abhaId)}
+                              className={`p-3 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
+                                isSelected
+                                  ? 'bg-sky-950/60 border-sky-500 text-sky-100 ring-1 ring-sky-500/50 shadow-md'
+                                  : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <img
+                                  src={p.photo}
+                                  alt={p.name}
+                                  className="w-10 h-10 rounded-full object-cover border border-slate-700 shrink-0"
+                                />
+                                <div>
+                                  <div className="text-sm font-bold text-white flex items-center space-x-2">
+                                    <span>{p.name}</span>
+                                    <span className="text-xs text-slate-400">({p.age}y, {p.gender})</span>
+                                  </div>
+                                  <div className="text-xs font-mono text-sky-400 mt-0.5">
+                                    {p.abhaId}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right text-[11px] text-slate-400 shrink-0">
+                                <div>Blood: <strong className="text-slate-200">{p.bloodGroup || 'O+'}</strong></div>
+                                {p.isKioskRegistered || p.isCustomWalkin ? (
+                                  <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 text-[10px]">
+                                    Live Walk-In
+                                  </span>
+                                ) : (
+                                  <span className="text-emerald-400 font-semibold">ABDM Linked</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
+
+                {/* Currently Selected Active Patient Summary Pill */}
+                {currentPatient && (
+                  <div className="p-3 bg-teal-950/30 border border-teal-800/40 rounded-2xl flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider block">Selected Patient</span>
+                      <span className="font-bold text-white text-sm">{currentPatient.name}</span>
+                      <span className="text-slate-400 ml-2">({currentPatient.age}y, {currentPatient.gender}, Blood: {currentPatient.bloodGroup || 'O+'})</span>
+                    </div>
+                    <div className="font-mono text-teal-300 text-xs font-semibold bg-teal-900/60 px-2.5 py-1 rounded-lg border border-teal-700/50">
+                      {currentPatient.abhaId}
+                    </div>
+                  </div>
+                )}
 
                 {/* Attending Physician */}
                 <div className="pt-2">

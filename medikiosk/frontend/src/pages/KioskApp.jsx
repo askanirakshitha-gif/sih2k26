@@ -529,6 +529,25 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
         const savedPatient = regRes.patient;
         setSelectedPatient(savedPatient);
         setPatients(prev => [savedPatient, ...prev.filter(p => p.id !== savedPatient.id && p.full_name !== savedPatient.full_name)]);
+        try {
+          const raw = localStorage.getItem('medikiosk_walkin_patients');
+          const list = raw ? JSON.parse(raw) : [];
+          const updated = [
+            {
+              abhaId: savedPatient.abha_id,
+              name: savedPatient.full_name,
+              age: savedPatient.age,
+              gender: savedPatient.gender,
+              bloodGroup: savedPatient.blood_group || 'O+',
+              phone: savedPatient.phone || '',
+              address: 'Kiosk Walk-In Registration',
+              abdmLinkedDate: 'Registered at Kiosk (Live)',
+              isKioskRegistered: true
+            },
+            ...list.filter(p => (p.abhaId || p.abha_id) !== savedPatient.abha_id)
+          ];
+          localStorage.setItem('medikiosk_walkin_patients', JSON.stringify(updated));
+        } catch (e) {}
         return savedPatient;
       }
     } catch (err) {
@@ -553,6 +572,25 @@ export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
     };
     setSelectedPatient(localPatient);
     setPatients(prev => [localPatient, ...prev.filter(p => p.id !== localPatient.id)]);
+    try {
+      const raw = localStorage.getItem('medikiosk_walkin_patients');
+      const list = raw ? JSON.parse(raw) : [];
+      const updated = [
+        {
+          abhaId: localPatient.abha_id,
+          name: localPatient.full_name,
+          age: localPatient.age,
+          gender: localPatient.gender,
+          bloodGroup: localPatient.blood_group || 'O+',
+          phone: localPatient.phone || '',
+          address: 'Kiosk Walk-In Registration',
+          abdmLinkedDate: 'Registered at Kiosk (Live)',
+          isKioskRegistered: true
+        },
+        ...list.filter(p => (p.abhaId || p.abha_id) !== localPatient.abha_id)
+      ];
+      localStorage.setItem('medikiosk_walkin_patients', JSON.stringify(updated));
+    } catch (e) {}
     return localPatient;
   };
 
