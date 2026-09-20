@@ -38,73 +38,124 @@ export class VoiceProvider {
 export class BrowserSpeechProvider extends VoiceProvider {
   constructor() {
     super();
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    this.recognitionClass = SpeechRecognition || null;
+    const SpeechRecognition = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition || null)
+      : null;
+    this.recognitionClass = SpeechRecognition;
     this.activeRecognition = null;
     this.isListening = false;
+    
+    // Pre-load voices to avoid the Chrome empty voices array bug
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
+    }
   }
 
   isSupported() {
-    return !!this.recognitionClass;
+    if (typeof window === 'undefined') return false;
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
 
   startListening({ language = 'en', onResult, onError, onStart, onEnd }) {
-    if (!this.recognitionClass) {
-      if (onError) onError(new Error("Browser speech recognition is not supported in this browser."));
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      if (onError) {
+        onError({
+          error: 'not-supported',
+          message: 'Speech recognition is not supported in this browser. Please use Chrome, Edge, or type your response.'
+        });
+      }
       return;
     }
 
     try {
       this.stopListening();
+      this.isListening = true;
 
-      this.activeRecognition = new this.recognitionClass();
-      this.activeRecognition.continuous = false;
-      this.activeRecognition.interimResults = true;
-      this.activeRecognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+      const recognition = new SpeechRecognition();
+      this.activeRecognition = recognition;
+      recognition.continuous = false; // continuous = false guarantees clean onend & instant response
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
 
-      this.activeRecognition.onstart = () => {
+      // Regional language mapping for Indian OPD Kiosk (English, Hindi, Kannada)
+      recognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-IN';
+
+      recognition.onstart = () => {
         this.isListening = true;
         if (onStart) onStart();
       };
 
-      this.activeRecognition.onresult = (event) => {
+      recognition.onresult = (event) => {
         let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        let isFinal = false;
+
+        for (let i = 0; i < event.results.length; ++i) {
           transcript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            isFinal = true;
+          }
         }
-        if (onResult) {
-          const isFinal = event.results[event.results.length - 1].isFinal;
-          onResult(transcript, isFinal);
+
+        const trimmed = transcript.trim();
+        if (onResult && trimmed) {
+          onResult(trimmed, isFinal);
         }
       };
 
-      this.activeRecognition.onerror = (event) => {
-        console.warn('[Speech Error]', event.error);
+      recognition.onerror = (event) => {
+        console.warn('[Speech Recognition Error]', event.error);
+        if (event.error === 'no-speech') {
+          // Normal silence timeout, end cleanly
+          this.isListening = false;
+          if (onEnd) onEnd();
+          return;
+        }
+
         this.isListening = false;
-        if (onError) onError(event);
+        let msg = `Microphone notice: ${event.error}`;
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          msg = 'Microphone access was blocked. Please allow microphone permission in the browser address bar.';
+        } else if (event.error === 'network') {
+          msg = 'Speech recognition network error. Please check your internet connection.';
+        } else if (event.error === 'audio-capture') {
+          msg = 'Microphone hardware is busy or unavailable.';
+        }
+
+        if (onError) onError({ error: event.error, message: msg });
       };
 
-      this.activeRecognition.onend = () => {
+      recognition.onend = () => {
         this.isListening = false;
+        this.activeRecognition = null;
         if (onEnd) onEnd();
       };
 
-      this.activeRecognition.start();
+      recognition.start();
     } catch (err) {
+      console.warn('[Speech Recognition Start Exception]', err);
       this.isListening = false;
-      if (onError) onError(err);
+      this.activeRecognition = null;
+      if (onError) onError({ error: 'start-failed', message: err.message || 'Microphone activation failed.' });
     }
   }
 
   stopListening() {
+    this.isListening = false;
     if (this.activeRecognition) {
       try {
-        this.activeRecognition.stop();
+        this.activeRecognition.abort();
       } catch (e) {
-        // Ignore if already stopped
+        // Ignore abort error
       }
       this.activeRecognition = null;
-      this.isListening = false;
     }
   }
 
@@ -122,14 +173,22 @@ export class BrowserSpeechProvider extends VoiceProvider {
       utterance.rate = 0.95; // Clear natural cadence for patients
 
       // Attempt to pick a natural regional voice if installed
-      const voices = window.speechSynthesis.getVoices();
+      let voices = window.speechSynthesis.getVoices();
+      
       const matchVoice = voices.find(v => {
-        if (language === 'hi') return v.lang.includes('hi');
-        if (language === 'kn') return v.lang.includes('kn');
-        return v.lang.includes('en-IN') || v.lang.includes('en-GB');
+        if (language === 'hi') return v.lang.includes('hi') || v.name.includes('Hindi');
+        if (language === 'kn') return v.lang.includes('kn') || v.name.includes('Kannada');
+        return v.lang.includes('en-IN') || v.lang.includes('en-GB') || v.name.includes('India');
       });
+
       if (matchVoice) {
         utterance.voice = matchVoice;
+      } else {
+        // Fallback: If no specific Kannada/Hindi voice is found, try to find Google's online voice
+        const fallbackVoice = voices.find(v => v.name.includes('Google') && v.lang.includes(language === 'kn' ? 'kn' : language === 'hi' ? 'hi' : 'en'));
+        if (fallbackVoice) {
+            utterance.voice = fallbackVoice;
+        }
       }
 
       if (onEnd) utterance.onend = onEnd;
@@ -184,6 +243,34 @@ export class BhashiniProvider extends VoiceProvider {
     // Cancel remote stream
   }
 }
+
+// Audio chime feedback for voice activation & completion
+export const playAudioChime = (type = 'start') => {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    if (type === 'start') {
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+    } else if (type === 'success') {
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+    }
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.2);
+  } catch (e) {
+    // Ignore audio context autoplay restrictions
+  }
+};
 
 // Default export is initialized browser provider
 export const defaultVoiceProvider = new BrowserSpeechProvider();

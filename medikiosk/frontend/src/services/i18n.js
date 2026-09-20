@@ -19,6 +19,12 @@ export const translations = {
     stepDocs: "Prescriptions",
     stepDone: "OPD Token",
     
+    // Navbar
+    hospitalsNearMeBtn: "Hospitals Near Me (GPS)",
+    patientIntakeBtn: "Patient Intake Kiosk",
+    hospitalPortalBtn: "Hospital Portal",
+    abdmDataExchangeBtn: "ABDM Data Exchange",
+    
     // Language Selection Screen
     selectLanguageTitle: "Select Your Preferred Language",
     selectLanguageSubtitle: "कृपया अपनी भाषा चुनें (Touch to select)",
@@ -51,6 +57,9 @@ export const translations = {
     consentText3: "Digital records may be formatted into FHIR standards and securely integrated with the Hospital Information System (HIS) with my consent.",
     consentCheckbox: "I understand and agree to the clinical history-taking process.",
     agreeContinueBtn: "I Agree & Begin Consultation",
+    listenPageAudio: "Listen to Page (Audio)",
+    stopPageAudio: "Stop Audio Reading",
+
     
     // Kiosk Question Screen
     questionProgress: "Question",
@@ -88,7 +97,63 @@ export const translations = {
     
     // Doctor Portal Toggle
     doctorPortalBtn: "Open Doctor Workstation",
-    kioskModeBtn: "Return to Patient Kiosk"
+    kioskModeBtn: "Return to Patient Kiosk",
+
+    // Clinical Intake Section
+    clinicalIntakeTitle: "Clinical History & Case Intake",
+    clinicalIntakeSubtitle: "Share your medical history. Tap chips, type, or tap the microphone to speak.",
+    chiefComplaintLabel: "Chief Complaint / Reason for Visit",
+    chiefComplaintSubtitle: "What primary discomfort or symptoms bring you here today?",
+    chiefComplaintPlaceholder: "e.g. Acute chest discomfort, acidic burning, severe joint ache",
+    pastHistoryLabel: "Past Medical History",
+    pastHistorySubtitle: "Do you have any existing long-term medical conditions?",
+    pastHistoryPlaceholder: "e.g. High blood pressure, Diabetes, Heart condition, None",
+    medicationsLabel: "Current Daily Medications",
+    medicationsSubtitle: "Are you taking regular modern or Ayurvedic medicines daily?",
+    medicationsPlaceholder: "e.g. BP pills, Diabetes tablets, Blood thinners, Herbal churna, None",
+    allergiesLabel: "Allergy History",
+    allergiesSubtitle: "Do you have allergies to any drugs, food, or dust?",
+    allergiesPlaceholder: "e.g. Penicillin allergy, Sulfa drugs, Food allergy, No known allergies",
+    familyHistoryLabel: "Family Medical History",
+    familyHistorySubtitle: "Any history of heart disease, diabetes, or cancer in immediate family?",
+    familyHistoryPlaceholder: "e.g. Father had CAD/Heart attack, Mother has diabetes, Negative",
+    personalHistoryLabel: "Personal Habits & Lifestyle",
+    personalHistorySubtitle: "How would you describe your daily routine, diet, and lifestyle habits?",
+    personalHistoryPlaceholder: "e.g. Sedentary routine, non-smoker, vegetarian, irregular meal timings",
+    rosLabel: "Review of Systems (Other Symptoms)",
+    rosSubtitle: "Are you experiencing any other symptoms across your body?",
+    rosPlaceholder: "e.g. Dizziness on standing, mild breathlessness, nausea, none",
+
+    // Accessibility & Voice
+    tapToSpeakBtn: "Tap to Speak",
+    listeningNow: "Listening... Speak now",
+    doneSpeaking: "Done Speaking",
+    listenAudioBtn: "Listen (Audio)",
+    autoVoiceLabel: "Voice Narration",
+    autoVoiceOn: "Auto-Voice ON",
+    autoVoiceOff: "Auto-Voice Muted",
+    recognizedVoiceText: "Recognized Voice:",
+    clearField: "Clear",
+    
+    // Hospital Dashboard
+    hospitalSignIn: "Hospital Node Sign-In",
+    hospitalSignInSub: "Connect your Hospital Information System (HIS) to request patient records from other network hospitals, or respond to incoming transfer requests via cryptographic blockchain smart contracts.",
+    reqPatientDataTitle: "Request Patient Data From Another Hospital",
+    reqPatientDataSub: "Select which hospital you want to request clinical records from. When dispatched, the request will be routed to that hospital's dashboard and the patient for OTP consent verification.",
+    hospitalPortalBtn: "Hospital Portal",
+    patientKioskBtn: "Patient Kiosk",
+    docWorkstationBtn: "Doctor OPD Queue",
+    enterCreds: "Enter Hospital Credentials",
+    hospIdCode: "Hospital ID / Code",
+    passcodeKey: "Security Passcode / Secret Key",
+    openDashboardBtn: "Open Hospital Dashboard",
+    chooseHospital: "Choose Your Hospital Identity (1-Click Fill)",
+    simulateNode: "Simulate Node:",
+    tabRequest: "1. Request Patient Data",
+    tabIncoming: "2. Second Hospital View (Incoming)",
+    tabTransferred: "3. Transferred Patient Dossier",
+    tabLedger: "4. Blockchain Audit Ledger",
+    step1Title: "1. Choose Which Hospital To Request Data From:"
   },
   
   hi: {
@@ -105,6 +170,12 @@ export const translations = {
     stepQuestions: "प्रश्न-उत्तर",
     stepDocs: "दस्तावेज़",
     stepDone: "ओपीडी टोकन",
+    
+    // Navbar
+    hospitalsNearMeBtn: "आसपास के अस्पताल (GPS)",
+    patientIntakeBtn: "रोगी कियोस्क",
+    hospitalPortalBtn: "अस्पताल पोर्टल",
+    abdmDataExchangeBtn: "ABDM डेटा एक्सचेंज",
     
     // Language Selection Screen
     selectLanguageTitle: "अपनी पसंदीदा भाषा चुनें",
@@ -138,6 +209,9 @@ export const translations = {
     consentText3: "यह डेटा सुरक्षित रूप से अस्पताल सूचना प्रणाली (HIS) के साथ साझा किया जा सकता है।",
     consentCheckbox: "मैं नियमों को समझता/समझती हूँ और सहमत हूँ।",
     agreeContinueBtn: "सहमति दें एवं परामर्श शुरू करें",
+    listenPageAudio: "पेज ऑडियो सुनें",
+    stopPageAudio: "ऑडियो बंद करें",
+
     
     // Kiosk Question Screen
     questionProgress: "प्रश्न",
@@ -175,7 +249,63 @@ export const translations = {
     
     // Doctor Portal Toggle
     doctorPortalBtn: "डॉक्टर वर्कस्टेशन खोलें",
-    kioskModeBtn: "रोगी कियोस्क पर वापस जाएं"
+    kioskModeBtn: "रोगी कियोस्क पर वापस जाएं",
+
+    // Clinical Intake Section (Hindi)
+    clinicalIntakeTitle: "चिकित्सीय इतिहास एवं स्वास्थ्य जानकारी",
+    clinicalIntakeSubtitle: "अपनी बीमारी और लक्षणों के बारे में बताएं। आप विकल्प चुन सकते हैं, लिख सकते हैं या बोलकर बता सकते हैं।",
+    chiefComplaintLabel: "मुख्य शिकायत / अस्पताल आने का कारण",
+    chiefComplaintSubtitle: "आज आपको मुख्य रूप से क्या शारीरिक तकलीफ या परेशानी है?",
+    chiefComplaintPlaceholder: "उदा. सीने में तेज दर्द 2 घंटे से, खट्टी डकारें, घुटनों में अकड़न",
+    pastHistoryLabel: "पिछला चिकित्सकीय इतिहास (पुरानी बीमारियां)",
+    pastHistorySubtitle: "क्या आपको पहले से कोई पुरानी बीमारी जैसे बीपी, शुगर या दमा है?",
+    pastHistoryPlaceholder: "उदा. हाई ब्लड प्रेशर, मधुमेह (शुगर), थायराइड, कोई नहीं",
+    medicationsLabel: "वर्तमान में ली जाने वाली नियमित दवाइयां",
+    medicationsSubtitle: "क्या आप रोजाना कोई आधुनिक गोली या आयुर्वेदिक चूर्ण लेते हैं?",
+    medicationsPlaceholder: "उदा. बीपी की दवा, शुगर की गोली, त्रिफला चूर्ण, कोई नहीं",
+    allergiesLabel: "एलर्जी का इतिहास",
+    allergiesSubtitle: "क्या आपको किसी दवा (पेनिसिलिन), खाने की चीज या धूल से एलर्जी है?",
+    allergiesPlaceholder: "उदा. पेनिसिलिन से एलर्जी, सल्फा दवाएं, कोई ज्ञात एलर्जी नहीं",
+    familyHistoryLabel: "पारिवारिक स्वास्थ्य इतिहास",
+    familyHistorySubtitle: "क्या परिवार में माता-पिता या भाई-बहन को दिल की बीमारी, शुगर या कैंसर रहा है?",
+    familyHistoryPlaceholder: "उदा. पिताजी को दिल का दौरा, माताजी को शुगर, परिवार में किसी को नहीं",
+    personalHistoryLabel: "व्यक्तिगत आदतें व दिनचर्या",
+    personalHistorySubtitle: "आपकी दैनिक जीवनशैली, दिनचर्या, खान-पान या कोई आदत कैसी है?",
+    personalHistoryPlaceholder: "उदा. बैठे रहने का काम, धूम्रपान नहीं, शाकाहारी, अनियमित भोजन",
+    rosLabel: "अन्य शारीरिक लक्षण (सिस्टम समीक्षा)",
+    rosSubtitle: "क्या शरीर में अन्य कोई लक्षण जैसे चक्कर, सांस फूलना या उल्टी महसूस हो रही है?",
+    rosPlaceholder: "उदा. चक्कर आना, हल्का सांस फूलना, उल्टी जैसा लगना, कोई नहीं",
+
+    // Accessibility & Voice
+    tapToSpeakBtn: "बोलकर बताएं",
+    listeningNow: "सुन रहे हैं... अभी बोलें",
+    doneSpeaking: "बोलना समाप्त हुआ",
+    listenAudioBtn: "आवाज सुनें",
+    autoVoiceLabel: "आवाज वाचक",
+    autoVoiceOn: "स्वचालित आवाज चालू",
+    autoVoiceOff: "स्वचालित आवाज बंद",
+    recognizedVoiceText: "सुनी गई आवाज:",
+    clearField: "हटाएं",
+    
+    // Hospital Dashboard
+    hospitalSignIn: "अस्पताल नोड साइन-इन",
+    hospitalSignInSub: "अन्य अस्पतालों से रोगी रिकॉर्ड का अनुरोध करने के लिए, या ब्लॉकचेन स्मार्ट कॉन्ट्रैक्ट के माध्यम से आने वाले अनुरोधों का जवाब देने के लिए अपने अस्पताल सूचना प्रणाली (HIS) को कनेक्ट करें।",
+    reqPatientDataTitle: "दूसरे अस्पताल से रोगी डेटा का अनुरोध करें",
+    reqPatientDataSub: "चुनें कि आप किस अस्पताल से रिकॉर्ड का अनुरोध करना चाहते हैं। भेजे जाने पर, अनुरोध उस अस्पताल के डैशबोर्ड और रोगी के पास OTP सत्यापन के लिए भेजा जाएगा।",
+    hospitalPortalBtn: "अस्पताल पोर्टल",
+    patientKioskBtn: "रोगी कियोस्क",
+    docWorkstationBtn: "डॉक्टर OPD कतार",
+    enterCreds: "अस्पताल क्रेडेंशियल दर्ज करें",
+    hospIdCode: "अस्पताल ID / कोड",
+    passcodeKey: "सुरक्षा पासकोड / गुप्त कुंजी",
+    openDashboardBtn: "अस्पताल डैशबोर्ड खोलें",
+    chooseHospital: "अपनी अस्पताल पहचान चुनें",
+    simulateNode: "नोड अनुकरण करें:",
+    tabRequest: "1. रोगी डेटा का अनुरोध करें",
+    tabIncoming: "2. दूसरा अस्पताल दृश्य (आवक)",
+    tabTransferred: "3. स्थानांतरित रोगी डॉसियर",
+    tabLedger: "4. ब्लॉकचेन ऑडिट लेजर",
+    step1Title: "1. चुनें कि किस अस्पताल से डेटा का अनुरोध करना है:"
   },
 
   kn: {
@@ -192,6 +322,12 @@ export const translations = {
     stepQuestions: "ಕೇಸ್-ಟೇಕಿಂಗ್",
     stepDocs: "ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ಗಳು",
     stepDone: "OPD ಟೋಕನ್",
+    
+    // Navbar
+    hospitalsNearMeBtn: "ಹತ್ತಿರದ ಆಸ್ಪತ್ರೆಗಳು (GPS)",
+    patientIntakeBtn: "ರೋಗಿಯ ಕಿಯೋಸ್ಕ್",
+    hospitalPortalBtn: "ಆಸ್ಪತ್ರೆ ಪೋರ್ಟಲ್",
+    abdmDataExchangeBtn: "ABDM ಡೇಟಾ ವಿನಿಮಯ",
     
     // Language Selection Screen
     selectLanguageTitle: "ನಿಮ್ಮ ಆದ್ಯತೆಯ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
@@ -225,6 +361,9 @@ export const translations = {
     consentText3: "ನನ್ನ ಸಮ್ಮತಿಯೊಂದಿಗೆ ಡಿಜಿಟಲ್ ದಾಖಲೆಗಳನ್ನು FHIR ಮಾನದಂಡಗಳಲ್ಲಿ ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆಗೆ (HIS) ಸುರಕ್ಷಿತವಾಗಿ ರವಾನಿಸಬಹುದು.",
     consentCheckbox: "ನಾನು ನಿಯಮಗಳನ್ನು ಅರ್ಥಮಾಡಿಕೊಂಡಿದ್ದೇನೆ ಮತ್ತು ಸಮಾಲೋಚನೆಗೆ ಒಪ್ಪುತ್ತೇನೆ.",
     agreeContinueBtn: "ನಾನು ಒಪ್ಪುತ್ತೇನೆ ಮತ್ತು ಸಮಾಲೋಚನೆ ಪ್ರಾರಂಭಿಸಿ",
+    listenPageAudio: "ಪುಟದ ಆಡಿಯೋ ಆಲಿಸಿ",
+    stopPageAudio: "ಆಡಿಯೋ ನಿಲ್ಲಿಸಿ",
+
     
     // Kiosk Question Screen
     questionProgress: "ಪ್ರಶ್ನೆ",
@@ -262,7 +401,63 @@ export const translations = {
     
     // Doctor Portal Toggle
     doctorPortalBtn: "ವೈದ್ಯರ ವರ್ಕ್‌ಸ್ಟೇಷನ್ ತೆರೆಯಿರಿ",
-    kioskModeBtn: "ರೋಗಿ ಕಿಯೋಸ್ಕ್‌ಗೆ ಹಿಂತಿರುಗಿ"
+    kioskModeBtn: "ರೋಗಿ ಕಿಯೋಸ್ಕ್‌ಗೆ ಹಿಂತಿರುಗಿ",
+
+    // Clinical Intake Section (Kannada)
+    clinicalIntakeTitle: "ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ ಮತ್ತು ಆರೋಗ್ಯ ವಿವರಗಳು",
+    clinicalIntakeSubtitle: "ನಿಮ್ಮ ಆರೋಗ್ಯ ಸಮಸ್ಯೆಗಳ ಬಗ್ಗೆ ತಿಳಿಸಿ. ನೀವು ಆಯ್ಕೆಗಳನ್ನು ಸ್ಪರ್ಶಿಸಬಹುದು, ಬರೆಯಬಹುದು ಅಥವಾ ಮಾತನಾಡಿ ತಿಳಿಸಬಹುದು.",
+    chiefComplaintLabel: "ಮುಖ್ಯ ದೂರು / ಭೇಟಿಯ ಕಾರಣ",
+    chiefComplaintSubtitle: "ಇಂದು ಆಸ್ಪತ್ರೆಗೆ ಭೇಟಿ ನೀಡಲು ನಿಮ್ಮ ಪ್ರಮುಖ ಆರೋಗ್ಯ ತೊಂದರೆ ಏನು?",
+    chiefComplaintPlaceholder: "ಉದಾ. 2 ಗಂಟೆಗಳಿಂದ ತೀವ್ರ ಎದೆನೋವು, ಆಮ್ಲಪಿತ್ತ, ಮಂಡಿ ಕೀಲುಗಳ ನೋವು",
+    pastHistoryLabel: "ಹಿಂದಿನ ವೈದ್ಯಕೀಯ ಇತಿಹಾಸ (ದೀರ್ಘಕಾಲಿಕ ಕಾಯಿಲೆಗಳು)",
+    pastHistorySubtitle: "ನಿಮಗೆ ಈ ಹಿಂದೆ ಬಿಪಿ, ಸಕ್ಕರೆ ಕಾಯಿಲೆ ಅಥವಾ ದಮ್ಮು ಮುಂತಾದ ಯಾವುದೇ ತೊಂದರೆಗಳಿವೆಯೇ?",
+    pastHistoryPlaceholder: "ಉದಾ. ಹೈ ಬಿಪಿ, ಮಧುಮೇಹ, ಥೈರಾಯ್ಡ್, ಯಾವುದೂ ಇಲ್ಲ",
+    medicationsLabel: "ಪ್ರಸ್ತುತ ತೆಗೆದುಕೊಳ್ಳುತ್ತಿರುವ ದಿನನಿತ್ಯದ ಔಷಧಿಗಳು",
+    medicationsSubtitle: "ನೀವು ಪ್ರಸ್ತುತ ಯಾವುದೇ ನಿಯಮಿತ ಮಾತ್ರೆಗಳು ಅಥವಾ ಆಯುರ್ವೇದ ಚೂರ್ಣ ಸೇವಿಸುತ್ತಿದ್ದೀರಾ?",
+    medicationsPlaceholder: "ಉದಾ. ಬಿಪಿ ಮಾತ್ರೆ, ಮಧುಮೇಹದ ಮಾತ್ರೆ, ತ್ರಿಫಲ ಚೂರ್ಣ, ಯಾವುದೂ ಇಲ್ಲ",
+    allergiesLabel: "ಅಲರ್ಜಿ ಇತಿಹಾಸ",
+    allergiesSubtitle: "ನಿಮಗೆ ಯಾವುದೇ ಔಷಧಿ (ಪೆನಿಸಿಲಿನ್), ಆಹಾರ ಅಥವಾ ಧೂಳಿನ ಅಲರ್ಜಿ ಇದೆಯೇ?",
+    allergiesPlaceholder: "ಉದಾ. ಪೆನಿಸಿಲಿನ್ ಅಲರ್ಜಿ, ಸಲ್ಫಾ ಮಾತ್ರೆಗಳು, ಯಾವುದೇ ಅಲರ್ಜಿ ಇಲ್ಲ",
+    familyHistoryLabel: "ಕುಟುಂಬದ ಆರೋಗ್ಯ ಇತಿಹಾಸ",
+    familyHistorySubtitle: "ನಿಮ್ಮ ಕುಟುಂಬದಲ್ಲಿ ಯಾರಿಗಾದರೂ ಹೃದಯಾಘಾತ, ಸಕ್ಕರೆ ಕಾಯಿಲೆ ಅಥವಾ ಕ್ಯಾನ್ಸರ್ ತೊಂದರೆ ಇದೆಯೇ?",
+    familyHistoryPlaceholder: "ಉದಾ. ತಂದೆಗೆ ಹೃದಯಾಘಾತ, ತಾಯಿಗೆ ಮಧುಮೇಹ, ಕುಟುಂಬದಲ್ಲಿ ಯಾರಿಗೂ ಇಲ್ಲ",
+    personalHistoryLabel: "ವೈಯಕ್ತಿಕ ಅಭ್ಯಾಸಗಳು ಮತ್ತು ಜೀವನಶೈಲಿ",
+    personalHistorySubtitle: "ನಿಮ್ಮ ದಿನಚರಿ, ಆಹಾರ ಪದ್ಧತಿ ಮತ್ತು ವೈಯಕ್ತಿಕ ಅಭ್ಯಾಸಗಳು ಹೇಗಿವೆ?",
+    personalHistoryPlaceholder: "ಉದಾ. ಕುಳಿತು ಮಾಡುವ ಕೆಲಸ, ಧೂಮಪಾನವಿಲ್ಲ, ಸಸ್ಯಾಹಾರಿ, ಅನಿಯಮಿತ ಊಟ",
+    rosLabel: "ಇತರ ದೈಹಿಕ ಲಕ್ಷಣಗಳು (ದೇಹ ಪರೀಕ್ಷೆ)",
+    rosSubtitle: "ದೇಹದಲ್ಲಿ ತಲೆಸುತ್ತು, ಉಸಿರಾಟದ ತೊಂದರೆ ಅಥವಾ ವಾಕರಿಕೆ ಮುಂತಾದ ಇತರ ಲಕ್ಷಣಗಳಿವೆಯೇ?",
+    rosPlaceholder: "ಉದಾ. ತಲೆಸುತ್ತು, ಸೌಮ್ಯ ಉಸಿರಾಟದ ತೊಂದರೆ, ವಾಕರಿಕೆ, ಯಾವುದೂ ಇಲ್ಲ",
+
+    // Accessibility & Voice
+    tapToSpeakBtn: "ಮಾತನಾಡಿ ತಿಳಿಸಿ",
+    listeningNow: "ಕೇಳಿಸಿಕೊಳ್ಳುತ್ತಿದ್ದೇವೆ... ಈಗ ಮಾತನಾಡಿ",
+    doneSpeaking: "ಮಾತನಾಡುವುದು ಮುಕ್ತಾಯ",
+    listenAudioBtn: "ಆಲಿಸಿ",
+    autoVoiceLabel: "ಧ್ವನಿ ಓದುವಿಕೆ",
+    autoVoiceOn: "ಸ್ವಯಂ ಧ್ವನಿ ಸಕ್ರಿಯ",
+    autoVoiceOff: "ಸ್ವಯಂ ಧ್ವನಿ ನಿಷ್ಕ್ರಿಯ",
+    recognizedVoiceText: "ಗುರುತಿಸಲಾದ ಧ್ವನಿ:",
+    clearField: "ಅಳಿಸಿ",
+    
+    // Hospital Dashboard
+    hospitalSignIn: "ಆಸ್ಪತ್ರೆ ನೋಡ್ ಸೈನ್-ಇನ್",
+    hospitalSignInSub: "ಇತರ ನೆಟ್‌ವರ್ಕ್ ಆಸ್ಪತ್ರೆಗಳಿಂದ ರೋಗಿಗಳ ದಾಖಲೆಗಳನ್ನು ವಿನಂತಿಸಲು, ಅಥವಾ ಬ್ಲಾಕ್‌ಚೈನ್ ಸ್ಮಾರ್ಟ್ ಒಪ್ಪಂದಗಳ ಮೂಲಕ ಒಳಬರುವ ವಿನಂತಿಗಳಿಗೆ ಪ್ರತಿಕ್ರಿಯಿಸಲು ನಿಮ್ಮ ಆಸ್ಪತ್ರೆ ಮಾಹಿತಿ ವ್ಯವಸ್ಥೆ (HIS) ಸಂಪರ್ಕಿಸಿ.",
+    reqPatientDataTitle: "ಇನ್ನೊಂದು ಆಸ್ಪತ್ರೆಯಿಂದ ರೋಗಿಯ ಡೇಟಾ ವಿನಂತಿಸಿ",
+    reqPatientDataSub: "ನೀವು ಯಾವ ಆಸ್ಪತ್ರೆಯಿಂದ ದಾಖಲೆಗಳನ್ನು ವಿನಂತಿಸಲು ಬಯಸುತ್ತೀರಿ ಎಂಬುದನ್ನು ಆಯ್ಕೆಮಾಡಿ. ಒಮ್ಮೆ ಕಳುಹಿಸಿದ ನಂತರ, OTP ಪರಿಶೀಲನೆಗಾಗಿ ಆ ಆಸ್ಪತ್ರೆಯ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಮತ್ತು ರೋಗಿಗೆ ವಿನಂತಿಯನ್ನು ರವಾನಿಸಲಾಗುತ್ತದೆ.",
+    hospitalPortalBtn: "ಆಸ್ಪತ್ರೆ ಪೋರ್ಟಲ್",
+    patientKioskBtn: "ರೋಗಿಯ ಕಿಯೋಸ್ಕ್",
+    docWorkstationBtn: "ವೈದ್ಯರ OPD ಸರದಿ",
+    enterCreds: "ಆಸ್ಪತ್ರೆ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ",
+    hospIdCode: "ಆಸ್ಪತ್ರೆ ID / ಕೋಡ್",
+    passcodeKey: "ಭದ್ರತಾ ಪಾಸ್‌ಕೋಡ್ / ರಹಸ್ಯ ಕೀ",
+    openDashboardBtn: "ಆಸ್ಪತ್ರೆ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ತೆರೆಯಿರಿ",
+    chooseHospital: "ನಿಮ್ಮ ಆಸ್ಪತ್ರೆಯ ಗುರುತನ್ನು ಆರಿಸಿ",
+    simulateNode: "ನೋಡ್ ಅನುಕರಿಸಿ:",
+    tabRequest: "1. ರೋಗಿಯ ಡೇಟಾ ವಿನಂತಿಸಿ",
+    tabIncoming: "2. ಎರಡನೇ ಆಸ್ಪತ್ರೆ ನೋಟ (ಒಳಬರುವ)",
+    tabTransferred: "3. ವರ್ಗಾವಣೆಗೊಂಡ ರೋಗಿಯ ಫೈಲ್",
+    tabLedger: "4. ಬ್ಲಾಕ್‌ಚೈನ್ ಆಡಿಟ್ ಲೆಡ್ಜರ್",
+    step1Title: "1. ಡೇಟಾ ವಿನಂತಿಸಲು ಆಸ್ಪತ್ರೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ:"
   }
 };
 

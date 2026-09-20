@@ -1,19 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Mic, MicOff, Volume2, ArrowRight, ArrowLeft, CheckCircle2,
+  Mic, MicOff, Volume2, VolumeX, ArrowRight, ArrowLeft, CheckCircle2,
   AlertTriangle, Upload, FileText, Stethoscope, Sparkles,
   ShieldCheck, RefreshCw, ChevronRight, User, HeartPulse, Flower2,
-  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus
+  Smartphone, KeyRound, Search, CreditCard, Check, UserPlus, Loader2,
+  Pill, Hospital, Activity, Printer, Download
 } from 'lucide-react';
 import { KioskService } from '../services/api';
-import { defaultVoiceProvider } from '../services/voiceProvider';
+import { defaultVoiceProvider, playAudioChime } from '../services/voiceProvider';
 import { getTranslation } from '../services/i18n';
 import KioskNavbar from '../components/KioskNavbar';
 import VoiceWaveform from '../components/VoiceWaveform';
+import VoiceInputField from '../components/VoiceInputField';
 import RedFlagModal from '../components/RedFlagModal';
+import HospitalGpsTracker from '../components/HospitalGpsTracker';
+import DoctorAuthModal from '../components/DoctorAuthModal';
+import AbdmBlockchainTransferModal from '../components/AbdmBlockchainTransferModal';
 import { dispatchEmergencyAlert } from '../services/alertSync';
 
-export default function KioskApp({ onSwitchToDoctor }) {
+export default function KioskApp({ onSwitchToDoctor, onSwitchToHospital }) {
+  // Navigation Views: 'HOSPITALS' (Landing & GPS Tracker) | 'INTAKE' (Clinical History Kiosk)
+  const [activeView, setActiveView] = useState('HOSPITALS');
+  const [selectedHospital, setSelectedHospital] = useState(null);
+  const [isDoctorAuthOpen, setIsDoctorAuthOpen] = useState(false);
+  const [showAbdmBlockchainModal, setShowAbdmBlockchainModal] = useState(false);
   // Navigation Steps: 'LANG' | 'SYSTEM' | 'PATIENT' | 'CONSENT' | 'QUESTIONS' | 'DOCS' | 'DONE'
   const [step, setStep] = useState('LANG');
   const [language, setLanguage] = useState('en');
@@ -23,6 +33,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
+  const [autoVoice, setAutoVoice] = useState(true); // Auto-voice narration for illiterate patients
   const [newPatientForm, setNewPatientForm] = useState({
     full_name: '',
     age: '',
@@ -30,7 +41,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
     phone: '',
     blood_group: 'B+',
     abha_id: '',
-    emergency_contact: ''
+    emergency_contact: '',
+    chief_complaint: '',
+    past_history: '',
+    medications_summary: '',
+    allergies_summary: '',
+    family_history: '',
+    personal_history: '',
+    review_of_systems: ''
   });
 
   // Walk-in Registration Options: 'abha' | 'phone' | 'manual'
@@ -46,7 +64,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [phoneInput, setPhoneInput] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('4826');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpMaskedPhone, setOtpMaskedPhone] = useState('');
+  const [otpGateway, setOtpGateway] = useState('');
+  const [otpDebugCode, setOtpDebugCode] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [otpResendCountdown, setOtpResendCountdown] = useState(30);
@@ -56,6 +77,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
   // Consent
   const [consentChecked, setConsentChecked] = useState(false);
+  const [manualOpdToken, setManualOpdToken] = useState('');
 
   // Session & Question State
   const [sessionId, setSessionId] = useState(null);
@@ -72,6 +94,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [micErrorMsg, setMicErrorMsg] = useState('');
 
   // Red Flag Alert State
   const [isRedFlag, setIsRedFlag] = useState(false);
@@ -85,7 +108,118 @@ export default function KioskApp({ onSwitchToDoctor }) {
   const [docType, setDocType] = useState('prescription');
   const fileInputRef = useRef(null);
 
+  // Summary & Medical Prescribed Report Data State
+  const [summaryReportData, setSummaryReportData] = useState(null);
+
+  // Fetch compiled medical summary & prescribed report when step becomes 'DONE'
+  useEffect(() => {
+    if (step === 'DONE' && sessionId) {
+      const fetchReport = async () => {
+        try {
+          const res = await KioskService.getSessionSummary(sessionId);
+          if (res && res.success) {
+            setSummaryReportData(res);
+          }
+        } catch (e) {
+          console.warn('Failed to fetch summary report:', e);
+        }
+      };
+      fetchReport();
+    }
+  }, [step, sessionId]);
+
   const t = (key) => getTranslation(language, key);
+
+  // Page Audio Read-Aloud State & Controls
+  const [isSpeakingPage, setIsSpeakingPage] = useState(false);
+
+  // Auto-trigger audio read-aloud when arriving at any step or question if autoVoice is enabled
+  useEffect(() => {
+    defaultVoiceProvider.cancelSpeech();
+    setIsSpeakingPage(false);
+
+    if (autoVoice) {
+      const timer = setTimeout(() => {
+        const textToRead = getPageAuditableText(step);
+        if (textToRead) {
+          setIsSpeakingPage(true);
+          defaultVoiceProvider.speak(textToRead, {
+            language,
+            onEnd: () => setIsSpeakingPage(false),
+            onError: () => setIsSpeakingPage(false)
+          });
+        }
+      }, 400);
+      return () => {
+        clearTimeout(timer);
+        defaultVoiceProvider.cancelSpeech();
+      };
+    }
+  }, [step, language, autoVoice, isNewPatient, currentQuestion]);
+
+  const getPageAuditableText = (targetStep) => {
+    const lang = language;
+    if (targetStep === 'CONSENT') {
+      return `${getTranslation(lang, 'consentTitle')}. ${getTranslation(lang, 'consentSubtitle')}. Point 1: ${getTranslation(lang, 'consentText1')}. Point 2: ${getTranslation(lang, 'consentText2')}. Point 3: ${getTranslation(lang, 'consentText3')}. Agreement: ${getTranslation(lang, 'consentCheckbox')}`;
+    }
+    if (targetStep === 'LANG') {
+      return `${getTranslation(lang, 'selectLanguageTitle')}. ${getTranslation(lang, 'selectLanguageSubtitle')}`;
+    }
+    if (targetStep === 'SYSTEM') {
+      return `${getTranslation(lang, 'selectSystemTitle')}. ${getTranslation(lang, 'selectSystemSubtitle')}. ${getTranslation(lang, 'allopathyTitle')}: ${getTranslation(lang, 'allopathyDesc')}. ${getTranslation(lang, 'ayushTitle')}: ${getTranslation(lang, 'ayushDesc')}`;
+    }
+    if (targetStep === 'PATIENT') {
+      if (isNewPatient) {
+        return lang === 'hi'
+          ? "नया मरीज पंजीकरण। कृपया अपना नाम, उम्र, मोबाइल नंबर, और अपनी मुख्य बीमारी, पुरानी दवाइयां एवं एलर्जी का विवरण भरें। आप बोलकर भी बता सकते हैं।"
+          : lang === 'kn'
+          ? "ಹೊಸ ರೋಗಿ ನೋಂದಣಿ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು, ವಯಸ್ಸು, ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಮತ್ತು ರೋಗ ಲಕ್ಷಣಗಳ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ ಅಥವಾ ಮಾತನಾಡಿ ತಿಳಿಸಿ."
+          : "New patient registration. Please enter your name, age, phone number, chief complaint, past medical history, current medications, and allergies. You can type, tap chips, or tap the microphone to speak.";
+      }
+      return lang === 'hi'
+        ? "मरीज पहचान। सूची से पंजीकृत मरीज चुनें या नया पंजीकरण करने के लिए 'नया मरीज पंजीकरण' पर स्पर्श करें।"
+        : lang === 'kn'
+        ? "ರೋಗಿಯ ಗುರುತು. ಪಟ್ಟಿಯಿಂದ ರೋಗಿಯನ್ನು ಆರಿಸಿ ಅಥವಾ ಹೊಸ ರೋಗಿ ನೋಂದಣಿ ಬಟನ್ ಒತ್ತಿ."
+        : "Patient Identification screen. Choose a registered patient from the list or tap 'New Walk-in Patient' to register.";
+    }
+    if (targetStep === 'QUESTIONS' && currentQuestion) {
+      const qOptionsText = (currentQuestion.options || []).map(o => o.text).join('. ');
+      return `${currentQuestion.text}. ${qOptionsText ? 'Options: ' + qOptionsText : ''}`;
+    }
+    if (targetStep === 'DOCS') {
+      return lang === 'hi'
+        ? "चिकित्सा दस्तावेज अपलोड करें। पर्ची या जांच रिपोर्ट स्कैन या अपलोड करें।"
+        : lang === 'kn'
+        ? "ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅಥವಾ ಲ್ಯಾಬ್ ವರದಿಯನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ."
+        : "Medical Document Upload. Upload past prescriptions or lab test reports.";
+    }
+    if (targetStep === 'DONE') {
+      return lang === 'hi'
+        ? "आपकी ओपीडी परामर्श प्रक्रिया पूर्ण हो चुकी है। आपका डिजिटल केस समरी तैयार है।"
+        : lang === 'kn'
+        ? "ನಿಮ್ಮ ಒಪಿಡಿ ಸಮಾಲೋಚನೆ ಪ್ರಕ್ರಿಯೆ ಪೂರ್ಣಗೊಂಡಿದೆ. ನಿಮ್ಮ ಡಿಜಿಟಲ್ ಕೇಸ್ ಸಾರಾಂಶ ಸಿದ್ಧವಾಗಿದೆ."
+        : "Your OPD consultation entry process is complete. Your digital intake summary is ready for the physician.";
+    }
+    return "";
+  };
+
+  const handleReadPageAloud = (customText) => {
+    if (isSpeakingPage) {
+      defaultVoiceProvider.cancelSpeech();
+      setIsSpeakingPage(false);
+      return;
+    }
+
+    const textToRead = customText || getPageAuditableText(step);
+    if (!textToRead) return;
+
+    setIsSpeakingPage(true);
+    defaultVoiceProvider.speak(textToRead, {
+      language,
+      onEnd: () => setIsSpeakingPage(false),
+      onError: () => setIsSpeakingPage(false)
+    });
+  };
 
   // Check speech recognition support on mount
   useEffect(() => {
@@ -144,6 +278,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
       if (matched) {
         setSelectedPatient(matched);
         setAbhaPatient(matched);
+        setPatients(prev => [matched, ...prev.filter(p => p.id !== matched.id)]);
         setNewPatientForm({
           full_name: matched.full_name,
           age: matched.age,
@@ -168,6 +303,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
         };
         setSelectedPatient(mockAbdmPatient);
         setAbhaPatient(mockAbdmPatient);
+        setPatients(prev => [mockAbdmPatient, ...prev.filter(p => p.id !== mockAbdmPatient.id)]);
         setNewPatientForm({
           full_name: mockAbdmPatient.full_name,
           age: mockAbdmPatient.age,
@@ -192,7 +328,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
   };
 
   // Handle Send OTP
-  const handleSendOtp = (customPhone) => {
+  const handleSendOtp = async (customPhone) => {
     const raw = (customPhone !== undefined ? customPhone : phoneInput).trim();
     const digits = raw.replace(/\D/g, '');
     if (digits.length < 10) {
@@ -207,16 +343,34 @@ export default function KioskApp({ onSwitchToDoctor }) {
     }
     setOtpError('');
     setRegValidationError('');
-    const newCode = '4826'; // fixed test code
-    setGeneratedOtp(newCode);
-    setOtpSent(true);
-    setOtpVerified(false);
-    setOtpInput('');
-    setOtpResendCountdown(30);
+    setOtpLoading(true);
+
+    try {
+      const res = await KioskService.sendOtp(raw);
+      if (res && res.success) {
+        setOtpSent(true);
+        setOtpVerified(false);
+        setOtpInput('');
+        setOtpMaskedPhone(res.phone_masked || '');
+        setOtpGateway(res.gateway || '');
+        if (res.otp) {
+          setOtpDebugCode(res.otp);
+        } else {
+          setOtpDebugCode('');
+        }
+        setOtpResendCountdown(30);
+      } else {
+        setOtpError(res?.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (err) {
+      setOtpError(err?.message || 'Failed to send OTP. Please check connection.');
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   // Handle Verify OTP
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     const trimmed = otpInput.trim();
     if (!trimmed) {
       setOtpError(
@@ -229,44 +383,104 @@ export default function KioskApp({ onSwitchToDoctor }) {
       return;
     }
 
-    if (trimmed === generatedOtp || trimmed === '1234' || trimmed === '4826') {
-      setOtpVerified(true);
-      setOtpError('');
-      setRegValidationError('');
+    setOtpLoading(true);
+    setOtpError('');
 
-      // Check if phone matches an existing registered patient
-      const cleanPhone = phoneInput.replace(/\D/g, '');
-      const matched = patients.find(p => p.phone && p.phone.replace(/\D/g, '').includes(cleanPhone));
-      if (matched) {
-        setSelectedPatient(matched);
-        setNewPatientForm({
-          full_name: matched.full_name,
-          age: matched.age,
-          gender: matched.gender,
-          phone: matched.phone || phoneInput,
-          blood_group: matched.blood_group || 'B+',
-          abha_id: matched.abha_id || '',
-          emergency_contact: matched.emergency_contact || ''
-        });
+    try {
+      const res = await KioskService.verifyOtp(phoneInput, trimmed);
+      if (res && (res.success || res.verified)) {
+        setOtpVerified(true);
+        setOtpError('');
+        setRegValidationError('');
+
+        // Check if phone matches an existing registered patient
+        const cleanPhone = phoneInput.replace(/\D/g, '');
+        const matched = patients.find(p => p.phone && p.phone.replace(/\D/g, '').includes(cleanPhone));
+        if (matched) {
+          setSelectedPatient(matched);
+          setNewPatientForm({
+            full_name: matched.full_name,
+            age: matched.age,
+            gender: matched.gender,
+            phone: matched.phone || phoneInput,
+            blood_group: matched.blood_group || 'B+',
+            abha_id: matched.abha_id || '',
+            emergency_contact: matched.emergency_contact || ''
+          });
+        } else {
+          setNewPatientForm(prev => ({
+            ...prev,
+            phone: phoneInput.startsWith('+91') ? phoneInput : `+91 ${phoneInput}`
+          }));
+        }
       } else {
-        setNewPatientForm(prev => ({
-          ...prev,
-          phone: phoneInput.startsWith('+91') ? phoneInput : `+91 ${phoneInput}`
-        }));
+        setOtpError(
+          res?.message || (
+            language === 'hi'
+              ? 'अमान्य ओटीपी कोड। कृपया एसएमएस में दिए गए 4 अंक फिर से दर्ज करें।'
+              : language === 'kn'
+              ? 'ಅಮಾನ್ಯ OTP ಕೋಡ್. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಕೋಡ್ ನಮೂದಿಸಿ.'
+              : 'Invalid OTP code. Please check the code received on your phone.'
+          )
+        );
       }
-    } else {
-      setOtpError(
-        language === 'hi'
-          ? 'अमान्य ओटीपी कोड। कृपया एसएमएस में दिए गए 4 अंक फिर से दर्ज करें।'
-          : language === 'kn'
-          ? 'ಅಮಾನ್ಯ OTP ಕೋಡ್. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಕೋಡ್ ನಮೂದಿಸಿ.'
-          : 'Invalid OTP code. Please enter the demo code shown in SMS banner.'
-      );
+    } catch (err) {
+      setOtpError(err?.message || 'OTP verification failed. Please try again.');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
+  // Register and persist a new walk-in patient immediately
+  const handleRegisterAndSavePatient = async (customFormData) => {
+    const dataToSave = customFormData || newPatientForm;
+    if (!dataToSave.full_name?.trim() || !dataToSave.age) {
+      return null;
+    }
+    try {
+      const regRes = await KioskService.registerPatient(dataToSave);
+      if (regRes && regRes.success && regRes.patient) {
+        const savedPatient = regRes.patient;
+        setSelectedPatient(savedPatient);
+        setPatients(prev => [savedPatient, ...prev.filter(p => p.id !== savedPatient.id && p.full_name !== savedPatient.full_name)]);
+        return savedPatient;
+      }
+    } catch (err) {
+      console.warn('Backend patient registration error, registering locally:', err);
+    }
+    // Reliable local fallback
+    const localPatient = {
+      id: `p-${Date.now()}`,
+      abha_id: dataToSave.abha_id || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
+      full_name: dataToSave.full_name.trim(),
+      age: parseInt(dataToSave.age, 10) || 30,
+      gender: dataToSave.gender || 'Male',
+      phone: dataToSave.phone || phoneInput || '',
+      blood_group: dataToSave.blood_group || 'O+',
+      chief_complaint: dataToSave.chief_complaint || '',
+      past_history: dataToSave.past_history || '',
+      medications_summary: dataToSave.medications_summary || '',
+      allergies_summary: dataToSave.allergies_summary || '',
+      family_history: dataToSave.family_history || '',
+      personal_history: dataToSave.personal_history || '',
+      review_of_systems: dataToSave.review_of_systems || ''
+    };
+    setSelectedPatient(localPatient);
+    setPatients(prev => [localPatient, ...prev.filter(p => p.id !== localPatient.id)]);
+    return localPatient;
+  };
+
+  // Switch to Demo Patients tab and sync any entered new patient
+  const handleSwitchToDemoTab = async () => {
+    if (newPatientForm.full_name?.trim() && newPatientForm.age) {
+      await handleRegisterAndSavePatient();
+    }
+    setIsNewPatient(false);
+    setRegValidationError('');
+  };
+
   // Handle Proceed to Consent
-  const handleProceedToConsent = () => {
+  const handleProceedToConsent = async () => {
     setRegValidationError('');
 
     if (!isNewPatient) {
@@ -329,6 +543,13 @@ export default function KioskApp({ onSwitchToDoctor }) {
       }
     }
 
+    // Persist registered patient and add to patients list immediately
+    const saved = await handleRegisterAndSavePatient();
+    if (saved) {
+      setSelectedPatient(saved);
+      setIsNewPatient(false);
+    }
+
     setStep('CONSENT');
   };
 
@@ -346,6 +567,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
           if (regRes.success) {
             finalPatientId = regRes.patient.id;
             setSelectedPatient(regRes.patient);
+            setPatients(prev => [regRes.patient, ...prev.filter(p => p.id !== regRes.patient.id)]);
           }
         }
       }
@@ -354,7 +576,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
         language,
         system,
         patientId: finalPatientId,
-        conditionId: system === 'ayush' ? 'ayush_general' : 'chest_pain'
+        conditionId: system === 'ayush' ? 'ayush_general' : 'chest_pain',
+        hospitalName: selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru',
+        hospitalId: selectedHospital ? selectedHospital.id || selectedHospital.hospitalId || null : null,
+        opdToken: manualOpdToken.trim() !== '' ? manualOpdToken.trim() : null
       });
 
       if (res.success) {
@@ -365,9 +590,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
         setStep('QUESTIONS');
         resetInputState();
 
-        // Optional read aloud of the first question
         if (res.nextQuestion) {
-          defaultVoiceProvider.speak(res.nextQuestion.text, { language });
+          const firstQText = res.nextQuestion.text || res.nextQuestion.questionText || '';
+          // Auto voice will handle speaking the first question via useEffect if enabled
         }
       }
     } catch (err) {
@@ -385,38 +610,102 @@ export default function KioskApp({ onSwitchToDoctor }) {
       setIsListening(false);
     } else {
       defaultVoiceProvider.cancelSpeech();
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
       setIsListening(true);
       setVoiceTranscript('');
+      setMicErrorMsg('');
 
       defaultVoiceProvider.startListening({
         language,
-        onStart: () => setIsListening(true),
+        onStart: () => {
+          setIsListening(true);
+          setMicErrorMsg('');
+        },
         onResult: (text, isFinal) => {
           setVoiceTranscript(text);
           setTextInput(text);
 
-          // Auto match options if user spoke option text
-          if (currentQuestion && currentQuestion.options) {
-            const lower = text.toLowerCase();
-            const matched = currentQuestion.options.find(opt => 
-              lower.includes(opt.text.toLowerCase()) || lower.includes(opt.value.toLowerCase())
-            );
+          if (!text.trim()) return;
+
+          // Enhanced Multilingual Matching (EN, HI, KN)
+          if (currentQuestion && currentQuestion.options && currentQuestion.options.length > 0) {
+            const lower = text.toLowerCase().trim();
+            const words = lower.split(/\s+/);
+
+            // Multilingual Spoken Number mapping (1-5)
+            const numMap = {
+              "1": 0, "one": 0, "first": 0, "एक": 0, "पहला": 0, "प्रथमा": 0, "ಒಂದು": 0, "ಮೊದಲ": 0,
+              "2": 1, "two": 1, "second": 1, "दो": 1, "दूसरा": 1, "द्वितीया": 1, "ಎರಡು": 1, "ಎರಡನೇ": 1,
+              "3": 2, "three": 2, "third": 2, "तीन": 2, "तीसरा": 2, "तृतीया": 2, "ಮೂರು": 2, "ಮೂರನೇ": 2,
+              "4": 3, "four": 3, "fourth": 3, "चार": 3, "चौथा": 3, "ನಾಲ್ಕು": 3, "ನಾಲ್ಕನೇ": 3,
+              "5": 4, "five": 4, "fifth": 4, "पांच": 4, "पाँच": 4, "पांचवां": 4, "ಐದು": 4, "ಐದನೇ": 4
+            };
+
+            let matchedIdx = -1;
+            for (const w of words) {
+              if (numMap[w] !== undefined && numMap[w] < currentQuestion.options.length) {
+                matchedIdx = numMap[w];
+                break;
+              }
+            }
+
+            if (matchedIdx !== -1) {
+              const opt = currentQuestion.options[matchedIdx];
+              setSelectedOption(opt.value);
+              if (isFinal) {
+                handleAutoSubmit(opt.value);
+              }
+              return;
+            }
+
+            // Text/value match across English, Hindi, Kannada
+            const matched = currentQuestion.options.find(opt => {
+              const valLower = (opt.value || '').toLowerCase();
+              const textLower = (opt.text || '').toLowerCase();
+              return lower.includes(valLower) || (textLower && lower.includes(textLower));
+            });
+
             if (matched) {
               setSelectedOption(matched.value);
-              handleAutoSubmit(matched.value);
+              if (isFinal) {
+                handleAutoSubmit(matched.value);
+              }
+            } else if (isFinal) {
+              // Send spoken transcript to backend for noise cancellation & acoustic option matching
+              handleSubmitAnswer(text.trim());
             }
-          } else if (currentQuestion && currentQuestion.type === 'yes_no') {
+          } else if (currentQuestion && (currentQuestion.type === 'yes_no' || currentQuestion.questionType === 'yes_no')) {
             const lower = text.toLowerCase();
-            if (lower.includes('yes') || lower.includes('हाँ') || lower.includes('ಹೌದು')) {
-              handleAutoSubmit('yes');
-            } else if (lower.includes('no') || lower.includes('नहीं') || lower.includes('ಇಲ್ಲ')) {
-              handleAutoSubmit('no');
+            const isYes = lower.includes('yes') || lower.includes('हाँ') || lower.includes('हां') || lower.includes('हೌದು') || lower.includes('ಹೌದು') || lower.includes('ha') || lower.includes('haan') || lower.includes('sahi');
+            const isNo = lower.includes('no') || lower.includes('नहीं') || lower.includes('ना') || lower.includes('ಇಲ್ಲ') || lower.includes('nahi') || lower.includes('illa');
+
+            if (isYes) {
+              setSelectedOption('yes');
+              if (isFinal) handleAutoSubmit('yes');
+            } else if (isNo) {
+              setSelectedOption('no');
+              if (isFinal) handleAutoSubmit('no');
+            } else if (isFinal) {
+              handleSubmitAnswer(text.trim());
             }
+          } else if (isFinal) {
+            handleSubmitAnswer(text.trim());
           }
         },
         onError: (err) => {
-          console.warn('Speech recognition error:', err);
+          console.warn('[Microphone/Speech Stream]', err);
           setIsListening(false);
+          if (err?.message) {
+            setMicErrorMsg(err.message);
+          } else if (err?.error === 'not-allowed') {
+            setMicErrorMsg('Microphone access blocked. Please allow mic in browser settings.');
+          } else if (err?.error === 'network') {
+            setMicErrorMsg('Speech recognition network error. Please check internet connection.');
+          } else if (err?.error !== 'no-speech' && err?.error !== 'aborted') {
+            setMicErrorMsg('Microphone input error. Please try again or type answer.');
+          }
         },
         onEnd: () => {
           setIsListening(false);
@@ -427,7 +716,10 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
   const handleReplayAudio = () => {
     if (currentQuestion) {
-      defaultVoiceProvider.speak(currentQuestion.text, { language });
+      const qText = currentQuestion.text || currentQuestion.questionText || '';
+      if (qText) {
+        defaultVoiceProvider.speak(qText, { language });
+      }
     }
   };
 
@@ -437,6 +729,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
     setTextInput('');
     setNumberInput(5);
     setVoiceTranscript('');
+    setMicErrorMsg('');
     defaultVoiceProvider.stopListening();
     setIsListening(false);
   };
@@ -505,10 +798,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setProgress(res.progress);
           resetInputState();
 
-          // Read out next dynamically generated question
-          if (!res.isRedFlag) {
-            defaultVoiceProvider.speak(res.nextQuestion.text, { language });
-          }
+          // Auto voice handles speaking the next dynamically generated question via useEffect
         }
       }
     } catch (err) {
@@ -531,6 +821,9 @@ export default function KioskApp({ onSwitchToDoctor }) {
     const file = e.target.files[0];
     if (!file) return;
 
+    const previewUrl = URL.createObjectURL(file);
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
     setUploadingDoc(true);
     const formData = new FormData();
     formData.append('document', file);
@@ -542,9 +835,12 @@ export default function KioskApp({ onSwitchToDoctor }) {
       const res = await KioskService.uploadDocument(formData);
       if (res.success) {
         setUploadedDocs(prev => [...prev, {
-          fileName: res.fileName,
+          fileName: res.fileName || file.name,
           documentType: docType,
-          extractions: res.extractions
+          extractions: res.extractions,
+          previewUrl: previewUrl,
+          fileUrl: res.fileUrl || res.file_url || previewUrl,
+          isPdf: isPdf
         }]);
       }
     } catch (err) {
@@ -565,6 +861,30 @@ export default function KioskApp({ onSwitchToDoctor }) {
         onLanguageChange={(newLang) => setLanguage(newLang)}
         opdToken={opdToken}
         isRedFlag={isRedFlag}
+        isSpeakingPage={isSpeakingPage}
+        onReadPageAloud={handleReadPageAloud}
+        activeView={activeView}
+        onNavigateView={(v) => setActiveView(v)}
+        onOpenDoctorAuth={() => setIsDoctorAuthOpen(true)}
+        onOpenAbdmTransfer={() => setShowAbdmBlockchainModal(true)}
+        onOpenHospitalPortal={onSwitchToHospital}
+      />
+
+      {/* Doctor Authentication PIN Modal */}
+      <DoctorAuthModal
+        isOpen={isDoctorAuthOpen}
+        onClose={() => setIsDoctorAuthOpen(false)}
+        onSuccess={() => {
+          setIsDoctorAuthOpen(false);
+          if (onSwitchToDoctor) onSwitchToDoctor();
+        }}
+      />
+
+      {/* ABDM Inter-Hospital Exchange & Hybrid Blockchain Modal */}
+      <AbdmBlockchainTransferModal
+        isOpen={showAbdmBlockchainModal}
+        onClose={() => setShowAbdmBlockchainModal(false)}
+        selectedPatient={selectedPatient || { abha_id: '91-2345-6789-0123', full_name: 'Ramesh Sharma', gender: 'Male', age: 54, chief_complaint: 'Acute retrosternal chest pain' }}
       />
 
       {/* Red Flag Emergency Alert Modal */}
@@ -575,17 +895,11 @@ export default function KioskApp({ onSwitchToDoctor }) {
           setShowRedFlagModal(false);
           setStaffAlertToast(true);
           setTimeout(() => setStaffAlertToast(false), 5000);
-          if (step === 'QUESTIONS' && currentQuestion?.text) {
-            defaultVoiceProvider.speak(currentQuestion.text, { language });
-          }
         }}
         onConfirmAndContinue={() => {
           setShowRedFlagModal(false);
           setStaffAlertToast(true);
           setTimeout(() => setStaffAlertToast(false), 5000);
-          if (step === 'QUESTIONS' && currentQuestion?.text) {
-            defaultVoiceProvider.speak(currentQuestion.text, { language });
-          }
         }}
         language={language}
       />
@@ -604,8 +918,38 @@ export default function KioskApp({ onSwitchToDoctor }) {
         </div>
       )}
 
-      {/* Main Kiosk Touch Surface */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">
+      {/* Render View: HOSPITALS (Hero Banner + GPS Tracker) OR INTAKE (Questionnaire) */}
+      {activeView === 'HOSPITALS' ? (
+        <HospitalGpsTracker
+          language={language}
+          onSelectHospital={(hosp) => setSelectedHospital(hosp)}
+          onStartKiosk={() => {
+            if (selectedHospital) {
+              const currentHosp = {
+                id: selectedHospital.id || 'hip-manipal-blr',
+                facilityName: selectedHospital.name || 'Manipal Hospital HAL',
+                facilityType: selectedHospital.facilityType || 'Tertiary Hospital',
+                abdmFacilityId: selectedHospital.abdmFacilityId || 'IN00000000',
+                availableRecords: selectedHospital.specialties || ['Clinical Consultation', 'Prescription']
+              };
+              const prevStr = localStorage.getItem('lastVisitedHospital');
+              if (prevStr) {
+                try {
+                  const prevData = JSON.parse(prevStr);
+                  if (prevData.id !== currentHosp.id) {
+                    localStorage.setItem('previousVisitedHospital', prevStr);
+                  }
+                } catch(e) {}
+              }
+              localStorage.setItem('lastVisitedHospital', JSON.stringify(currentHosp));
+            }
+            setActiveView('INTAKE');
+            setStep('LANG');
+          }}
+          onSwitchToDoctor={onSwitchToDoctor}
+        />
+      ) : (
+        <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">
 
         {/* ------------------------------------------------------------------ */}
         {/* STEP 1: LANGUAGE SELECTION */}
@@ -785,15 +1129,12 @@ export default function KioskApp({ onSwitchToDoctor }) {
             {/* Toggle demo vs new */}
             <div className="flex gap-3 mb-6">
               <button
-                onClick={() => {
-                  setIsNewPatient(false);
-                  setRegValidationError('');
-                }}
+                onClick={handleSwitchToDemoTab}
                 className={`flex-1 py-3 font-bold text-sm rounded-xl border-2 transition ${
                   !isNewPatient ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-600'
                 }`}
               >
-                {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : language === 'kn' ? 'ನೋಂದಾಯಿತ ಡೆಮೊ ರೋಗಿಗಳು' : 'Existing Demo Patients'}
+                {language === 'hi' ? 'मौजूदा पंजीकृत डेमो मरीज' : language === 'kn' ? 'ನೋಂದಾಯಿತ ಡೆಮೊ ರೋಗಿಗಳು' : 'Existing Demo Patients'} ({patients.length})
               </button>
               <button
                 onClick={() => {
@@ -810,35 +1151,52 @@ export default function KioskApp({ onSwitchToDoctor }) {
 
             {!isNewPatient ? (
               <div className="space-y-3 mb-8">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
-                  {t('demoPatientLabel')}
-                </label>
-                {patients.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => setSelectedPatient(p)}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition flex items-center justify-between ${
-                      selectedPatient?.id === p.id
-                        ? 'border-sky-600 bg-sky-50/50 shadow-sm'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold">
-                        {p.full_name[0]}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900 text-base">{p.full_name}</div>
-                        <div className="text-xs text-slate-500">
-                          {p.age} {language === 'hi' ? 'वर्ष' : language === 'kn' ? 'ವರ್ಷ' : 'Yrs'} • {language === 'kn' ? (p.gender === 'Male' ? 'ಪುರುಷ' : p.gender === 'Female' ? 'ಮಹಿಳೆ' : 'ಇತರ') : language === 'hi' ? (p.gender === 'Male' ? 'पुरुष' : p.gender === 'Female' ? 'महिला' : 'अन्य') : p.gender} • ABHA: <span className="font-mono text-slate-700">{p.abha_id}</span>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                    {t('demoPatientLabel')}
+                  </label>
+                  <span className="text-[11px] text-sky-600 font-semibold">
+                    {patients.length} {patients.length === 1 ? 'Patient' : 'Patients'} Available
+                  </span>
+                </div>
+                {patients.map((p) => {
+                  const isNewlyAdded = p.id && (String(p.id).startsWith('p-') || String(p.id).startsWith('abha_'));
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => setSelectedPatient(p)}
+                      className={`p-4 rounded-2xl border-2 cursor-pointer transition flex items-center justify-between ${
+                        selectedPatient?.id === p.id
+                          ? 'border-sky-600 bg-sky-50/70 shadow-sm ring-1 ring-sky-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shadow-xs shrink-0 ${
+                          selectedPatient?.id === p.id ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {p.full_name ? p.full_name.trim()[0]?.toUpperCase() : 'P'}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-extrabold text-slate-900 text-base">{p.full_name}</span>
+                            {isNewlyAdded && (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                Walk-in Registered
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {p.age} {language === 'hi' ? 'वर्ष' : language === 'kn' ? 'ವರ್ಷ' : 'Yrs'} • {language === 'kn' ? (p.gender === 'Male' ? 'ಪುರುಷ' : p.gender === 'Female' ? 'ಮಹಿಳೆ' : 'ಇತರ') : language === 'hi' ? (p.gender === 'Male' ? 'पुरुष' : p.gender === 'Female' ? 'महिला' : 'अन्य') : p.gender} • ABHA: <span className="font-mono text-slate-700">{p.abha_id || 'Walk-in'}</span>
+                          </div>
                         </div>
                       </div>
+                      {selectedPatient?.id === p.id && (
+                        <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2" />
+                      )}
                     </div>
-                    {selectedPatient?.id === p.id && (
-                      <CheckCircle2 className="w-6 h-6 text-sky-600" />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="space-y-6 mb-8">
@@ -1124,7 +1482,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                             setPhoneInput(e.target.value);
                             setOtpError('');
                           }}
-                          placeholder="e.g. 9876543210"
+                          placeholder="Enter 10-digit mobile number"
                           className="w-full p-3 rounded-xl border border-slate-300 font-mono text-sm tracking-wide focus:ring-2 focus:ring-sky-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-500"
                         />
                       </div>
@@ -1132,9 +1490,14 @@ export default function KioskApp({ onSwitchToDoctor }) {
                         <button
                           type="button"
                           onClick={() => handleSendOtp()}
-                          className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm"
+                          disabled={otpLoading}
+                          className="px-6 py-3 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm"
                         >
-                          <Smartphone className="w-4 h-4" />
+                          {otpLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Smartphone className="w-4 h-4" />
+                          )}
                           <span>{otpSent ? 'Resend OTP' : 'Send OTP'}</span>
                         </button>
                       ) : (
@@ -1145,76 +1508,62 @@ export default function KioskApp({ onSwitchToDoctor }) {
                       )}
                     </div>
 
-                    {/* Quick demo sample numbers */}
-                    {!otpVerified && (
-                      <div className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="font-semibold text-slate-600">Quick Samples:</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPhoneInput('+91 9876543210');
-                            handleSendOtp('+91 9876543210');
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
-                        >
-                          9876543210 (Ramesh)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPhoneInput('+91 9812345678');
-                            handleSendOtp('+91 9812345678');
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-300 hover:border-sky-500 rounded-lg font-mono text-[11px] text-sky-700 transition"
-                        >
-                          9812345678 (Sunita)
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Simulated SMS banner when OTP is sent */}
+                    {/* SMS Banner when OTP is sent */}
                     {otpSent && !otpVerified && (
-                      <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl space-y-3">
-                        <div className="flex items-center justify-between text-xs text-amber-900 font-semibold">
+                      <div className="p-4 bg-sky-50 border border-sky-300 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between text-xs text-sky-900 font-semibold">
                           <span className="flex items-center">
-                            <KeyRound className="w-4 h-4 mr-1.5 text-amber-700" />
-                            SMS Notification Simulation (Demo)
+                            <KeyRound className="w-4 h-4 mr-1.5 text-sky-700" />
+                            SMS Dispatched via {otpGateway || 'SMS Gateway'}
                           </span>
-                          <span className="font-mono bg-amber-200/80 px-2 py-0.5 rounded text-amber-900 font-bold">
-                            Demo Code: {generatedOtp}
-                          </span>
+                          {otpMaskedPhone && (
+                            <span className="font-mono bg-sky-200/80 px-2 py-0.5 rounded text-sky-900 font-bold">
+                              To: {otpMaskedPhone}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-amber-800">
-                          "Your MediKiosk security OTP for mobile registration is <strong>{generatedOtp}</strong>. Valid for 10 minutes."
+                        <p className="text-xs text-sky-800">
+                          {otpDebugCode ? (
+                            <>Offline Kiosk Simulator Code: <strong className="font-mono bg-amber-200 px-1.5 py-0.5 rounded">{otpDebugCode}</strong> (Sent to {otpMaskedPhone})</>
+                          ) : (
+                            <>Security OTP dispatched to <strong>{otpMaskedPhone || 'your mobile device'}</strong>. Please enter the 4-digit code below.</>
+                          )}
                         </p>
 
                         {/* OTP Entry Box */}
-                        <div className="flex items-center gap-2 pt-1">
+                        <div className="flex items-center gap-2 pt-1 flex-wrap">
                           <input
                             type="text"
                             maxLength={6}
                             value={otpInput}
                             onChange={(e) => setOtpInput(e.target.value)}
                             placeholder="Enter OTP"
-                            className="w-36 p-2.5 rounded-xl border border-amber-400 bg-white font-mono text-center font-extrabold tracking-widest text-base focus:ring-2 focus:ring-amber-500 outline-none"
+                            className="w-36 p-2.5 rounded-xl border border-sky-400 bg-white font-mono text-center font-extrabold tracking-widest text-base focus:ring-2 focus:ring-sky-500 outline-none"
                           />
                           <button
                             type="button"
                             onClick={handleVerifyOtp}
-                            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+                            disabled={otpLoading}
+                            className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center space-x-1.5 shadow-sm"
                           >
-                            <Check className="w-4 h-4" />
+                            {otpLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
                             <span>Verify OTP</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOtpInput(generatedOtp);
-                            }}
-                            className="px-3 py-2 text-xs text-amber-800 font-bold hover:underline"
-                          >
-                            Auto-fill
-                          </button>
+                          {otpDebugCode && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOtpInput(otpDebugCode);
+                              }}
+                              className="px-3 py-2 text-xs text-sky-800 font-bold hover:underline"
+                            >
+                              Auto-fill Code
+                            </button>
+                          )}
                           {otpResendCountdown > 0 && (
                             <span className="text-[11px] text-slate-500 ml-auto">
                               Resend in {otpResendCountdown}s
@@ -1356,7 +1705,7 @@ export default function KioskApp({ onSwitchToDoctor }) {
                           type="text"
                           value={newPatientForm.phone}
                           onChange={(e) => setNewPatientForm({ ...newPatientForm, phone: e.target.value })}
-                          placeholder="+91 9876543210"
+                          placeholder="Enter 10-digit mobile number"
                           className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none bg-white text-sm"
                         />
                       </div>
@@ -1387,6 +1736,172 @@ export default function KioskApp({ onSwitchToDoctor }) {
                     </div>
                   </div>
                 )}
+
+                {/* Clinical History & Case Intake Section (Voice Narrated & Tap-to-Speak Enabled) */}
+                <div className="bg-sky-50/70 border-2 border-sky-200 rounded-3xl p-6 space-y-6 mt-6 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200 pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Stethoscope className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-base flex items-center">
+                          <span>{t('clinicalIntakeTitle') || 'Clinical History & Case Intake'}</span>
+                          <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md uppercase">
+                            {language === 'hi' ? 'बोलकर भरें (Voice Enabled)' : language === 'kn' ? 'ಧ್ವನಿ ಬೆಂಬಲ' : 'Tap to Speak'}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          {t('clinicalIntakeSubtitle') || 'Please speak or select your symptoms and health history for the doctor workstation.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Read All Intake Fields Aloud Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fullPrompt = `${t('clinicalIntakeTitle') || 'Clinical History & Case Intake'}. ${t('clinicalIntakeSubtitle') || 'Please speak or select your symptoms and health history.'}`;
+                        defaultVoiceProvider.speak(fullPrompt, { language });
+                      }}
+                      className="px-3 py-1.5 bg-white hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shrink-0 shadow-2xs"
+                    >
+                      <Volume2 className="w-4 h-4 text-sky-600" />
+                      <span>{language === 'hi' ? 'सभी प्रश्न सुनें' : language === 'kn' ? 'ಎಲ್ಲವನ್ನೂ ಆಲಿಸಿ' : 'Listen All Prompts'}</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5">
+                    {/* 1. Chief Complaint */}
+                    <VoiceInputField
+                      id="chief_complaint"
+                      label={t('chiefComplaintLabel') || 'Chief Complaint / Main Symptom'}
+                      subtitle={t('chiefComplaintSubtitle') || 'What brings you to the hospital today?'}
+                      value={newPatientForm.chief_complaint}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, chief_complaint: val }))}
+                      placeholder={language === 'hi' ? 'उदा: पिछले 3 दिनों से बुखार और छाती में दर्द' : language === 'kn' ? 'ಉದಾ: ಕಳೆದ 3 ದಿನಗಳಿಂದ ಜ್ವರ ಮತ್ತು ಎದೆ ನೋವು' : 'e.g. Fever & chest pain for 3 days'}
+                      language={language}
+                      rows={2}
+                      type="textarea"
+                      chips={[
+                        { label: 'Fever', value: 'Fever (बुखार / ಜ್ವರ)', text_hi: 'बुखार', text_kn: 'ಜ್ವರ' },
+                        { label: 'Cough & Cold', value: 'Cough & Cold (खांसी और जुकाम)', text_hi: 'खांसी व जुकाम', text_kn: 'ಕೆಮ್ಮು ಮತ್ತು ಶೀತ' },
+                        { label: 'Chest Pain', value: 'Chest Pain (छाती में दर्द)', text_hi: 'छाती में दर्द', text_kn: 'ಎದೆ ನೋವು' },
+                        { label: 'Abdominal Pain', value: 'Abdominal Pain (पेट दर्द)', text_hi: 'पेट दर्द', text_kn: 'ಹೊಟ್ಟೆ ನೋವು' },
+                        { label: 'Joint Pain', value: 'Joint Pain (जोड़ों का दर्द)', text_hi: 'जोड़ों का दर्द', text_kn: 'ಸಂಧಿವಾತ' },
+                        { label: 'Headache', value: 'Headache (सिरदर्द)', text_hi: 'सिरदर्द', text_kn: 'ತಲೆನೋವು' },
+                        { label: 'Skin Rash', value: 'Skin Rash (त्वचा पर चकत्ते)', text_hi: 'त्वचा पर चकत्ते', text_kn: 'ಚರ್ಮದ ದದ್ದು' }
+                      ]}
+                    />
+
+                    {/* 2. Past Medical History */}
+                    <VoiceInputField
+                      id="past_history"
+                      label={t('pastHistoryLabel') || 'Past Medical History (पूर्व चिकित्सीय इतिहास)'}
+                      subtitle={t('pastHistorySubtitle') || 'Any existing conditions like Diabetes, BP, or Thyroid?'}
+                      value={newPatientForm.past_history}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, past_history: val }))}
+                      placeholder={language === 'hi' ? 'उदा: मधुमेह 5 साल से' : language === 'kn' ? 'ಉದಾ: ಮಧುಮೇಹ' : 'e.g. Diabetes for 5 years, Hypertension'}
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Diabetes', value: 'Diabetes (मधुमेह)', text_hi: 'मधुमेह (Sugar)', text_kn: 'ಮಧುಮೇಹ' },
+                        { label: 'Hypertension (BP)', value: 'Hypertension (उच्च रक्तचाप)', text_hi: 'हाई बीपी', text_kn: 'ಅಧಿಕ ರಕ್ತದೊತ್ತಡ' },
+                        { label: 'Asthma', value: 'Asthma (अस्थमा)', text_hi: 'अस्थमा / दमा', text_kn: 'ಉಬ್ಬಸ' },
+                        { label: 'Thyroid', value: 'Thyroid Disorder', text_hi: 'थायराइड', text_kn: 'ಥೈರಾಯ್ಡ್' },
+                        { label: 'None', value: 'None (कोई बीमारी नहीं)', text_hi: 'कोई बीमारी नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                      ]}
+                    />
+
+                    {/* 3. Current Medications */}
+                    <VoiceInputField
+                      id="medications_summary"
+                      label={t('medicationsLabel') || 'Current Medications (वर्तमान दवाएं)'}
+                      subtitle={t('medicationsSubtitle') || 'Medicines, tablets, or herbal churna currently taken daily'}
+                      value={newPatientForm.medications_summary}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, medications_summary: val }))}
+                      placeholder={language === 'hi' ? 'उदा: पैरासिटामोल, मेटफॉर्मिन' : language === 'kn' ? 'ಉದಾ: ಪ್ಯಾರಸಿಟಮಾಲ್' : 'e.g. Paracetamol 500mg, Metformin 500mg'}
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Paracetamol', value: 'Paracetamol 500mg', text_hi: 'पैरासिटामोल', text_kn: 'ಪ್ಯಾರಸಿಟಮಾಲ್' },
+                        { label: 'Metformin', value: 'Metformin 500mg', text_hi: 'मेटफॉर्मिन', text_kn: 'ಮೆಟ್‌ಫಾರ್ಮಿನ್' },
+                        { label: 'Amlodipine', value: 'Amlodipine (BP)', text_hi: 'एमलोडिपिन', text_kn: 'ಆಮ್ಲೋಡಿಪಿನ್' },
+                        { label: 'Ayurvedic Churna', value: 'Ayurvedic Churna', text_hi: 'आयुर्वेदिक चूर्ण', text_kn: 'ಆಯುರ್ವೇದ ಚೂರ್ಣ' },
+                        { label: 'None', value: 'None (कोई दवा नहीं)', text_hi: 'कोई दवा नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                      ]}
+                    />
+
+                    {/* 4. Allergies */}
+                    <VoiceInputField
+                      id="allergies_summary"
+                      label={t('allergiesLabel') || 'Allergy History (अलर्जी इतिहास)'}
+                      subtitle={t('allergiesSubtitle') || 'Known drug, food, or environmental allergies'}
+                      value={newPatientForm.allergies_summary}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, allergies_summary: val }))}
+                      placeholder={language === 'hi' ? 'उदा: पेनिसिलिन या धूल की एलर्जी' : language === 'kn' ? 'ಉದಾ: ಪೆನಿಸಿಲಿನ್ ಅಲರ್ಜಿ' : 'e.g. Penicillin allergy, Dust allergy'}
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Penicillin', value: 'Penicillin Allergy', text_hi: 'पेनिसिलिन', text_kn: 'ಪೆನಿಸಿಲಿನ್ ಅಲರ್ಜಿ' },
+                        { label: 'Dust / Pollen', value: 'Dust Allergy', text_hi: 'धूल से एलर्जी', text_kn: 'ಧೂಳಿನ ಅಲರ್ಜಿ' },
+                        { label: 'Food Allergy', value: 'Food Allergy', text_hi: 'भोजन की एलर्जी', text_kn: 'ಆಹಾರ ಅಲರ್ಜಿ' },
+                        { label: 'None', value: 'No Known Allergies', text_hi: 'कोई एलर्जी नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                      ]}
+                    />
+
+                    {/* 5. Family & Personal History */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <VoiceInputField
+                        id="family_history"
+                        label={t('familyHistoryLabel') || 'Family History (पारिवारिक इतिहास)'}
+                        subtitle="Major health issues in parents or siblings"
+                        value={newPatientForm.family_history}
+                        onChange={(val) => setNewPatientForm(prev => ({ ...prev, family_history: val }))}
+                        placeholder="e.g. Heart disease in father"
+                        language={language}
+                        type="text"
+                        chips={[
+                          { label: 'Diabetes in Family', value: 'Family Diabetes', text_hi: 'परिवार में शुगर', text_kn: 'ಕುಟುಂಬದಲ್ಲಿ ಮಧುಮೇಹ' },
+                          { label: 'Heart Disease', value: 'Family Heart Disease', text_hi: 'हृदय रोग', text_kn: 'ಹೃದಯ ರೋಗ' },
+                          { label: 'None', value: 'Negative', text_hi: 'कोई समस्या नहीं', text_kn: 'ಯಾವುದೂ ಇಲ್ಲ' }
+                        ]}
+                      />
+                      <VoiceInputField
+                        id="personal_history"
+                        label={t('personalHistoryLabel') || 'Personal Habits (व्यक्तिगत आदतें)'}
+                        subtitle="Diet, smoking, physical activity"
+                        value={newPatientForm.personal_history}
+                        onChange={(val) => setNewPatientForm(prev => ({ ...prev, personal_history: val }))}
+                        placeholder="e.g. Vegetarian, Non-smoker"
+                        language={language}
+                        type="text"
+                        chips={[
+                          { label: 'Vegetarian', value: 'Vegetarian', text_hi: 'शाकाहारी', text_kn: 'ಸಸ್ಯಾಹಾರಿ' },
+                          { label: 'Tobacco / Smoking', value: 'Tobacco User', text_hi: 'तंबाकू / धूम्रपान', text_kn: 'ತंबಾಕು' },
+                          { label: 'Non-Smoker', value: 'Non-Smoker', text_hi: 'धूम्रपान नहीं करते', text_kn: 'ಧೂಮಪಾನವಿಲ್ಲ' }
+                        ]}
+                      />
+                    </div>
+
+                    {/* 6. Review of Systems */}
+                    <VoiceInputField
+                      id="review_of_systems"
+                      label={t('rosLabel') || 'Review of Systems (शारीरिक प्रणालियों की समीक्षा)'}
+                      subtitle="Associated complaints like weakness, indigestion, or shortness of breath"
+                      value={newPatientForm.review_of_systems}
+                      onChange={(val) => setNewPatientForm(prev => ({ ...prev, review_of_systems: val }))}
+                      placeholder="e.g. Indigestion and occasional dizziness"
+                      language={language}
+                      type="text"
+                      chips={[
+                        { label: 'Normal / All Healthy', value: 'All Systems Normal', text_hi: 'सब सामान्य है', text_kn: 'ಎಲ್ಲವೂ ಸಾಮಾನ್ಯವಾಗಿದೆ' },
+                        { label: 'Fatigue / Weakness', value: 'Fatigue & Weakness', text_hi: 'थकान व कमजोरी', text_kn: 'ಆಯಾಸ' },
+                        { label: 'Digestive Issues', value: 'Indigestion & Acidity', text_hi: 'पाचन की समस्या', text_kn: 'ಅಜೀರ್ಣ' }
+                      ]}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1420,22 +1935,95 @@ export default function KioskApp({ onSwitchToDoctor }) {
               <ArrowLeft className="w-4 h-4 mr-1" /> {t('backBtn')}
             </button>
 
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-7 h-7" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    {t('consentTitle')}
+                  </h1>
+                  <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+                    {t('consentSubtitle')}
+                  </p>
+                </div>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                {t('consentTitle')}
-              </h1>
+
+              {/* Default Audio Playback Status & Controls */}
+              <div className="flex items-center space-x-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleReadPageAloud()}
+                  className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold flex items-center space-x-2 transition shadow-md border ${
+                    isSpeakingPage
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 animate-pulse ring-4 ring-amber-100'
+                      : 'bg-sky-600 hover:bg-sky-700 text-white border-sky-700'
+                  }`}
+                  title={isSpeakingPage ? 'Pause / Mute Default Audio' : 'Replay Consent Audio'}
+                >
+                  {isSpeakingPage ? (
+                    <>
+                      <VolumeX className="w-5 h-5 text-white" />
+                      <span>{language === 'hi' ? 'ऑडियो रोकें' : language === 'kn' ? 'ಆಡಿಯೋ ನಿಲ್ಲಿಸಿ' : 'Pause Audio'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-5 h-5" />
+                      <span>{language === 'hi' ? 'पुनः सुनें' : language === 'kn' ? 'ಮತ್ತे आलिसि' : 'Replay Audio'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <p className="text-slate-500 text-xs sm:text-sm mb-6">
-              {t('consentSubtitle')}
-            </p>
+
+            {/* Default Audio Banner */}
+            {isSpeakingPage && (
+              <div className="mb-6 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-xs font-bold flex items-center justify-between animate-pulse">
+                <div className="flex items-center space-x-2">
+                  <Volume2 className="w-4 h-4 text-amber-600 animate-bounce" />
+                  <span>
+                    {language === 'hi'
+                      ? '🔊 डिफ़ॉल्ट हिंदी ऑडियो स्वचालित रूप से पढ़ा जा रहा है...'
+                      : language === 'kn'
+                      ? '🔊 ಡೀಫಾಲ್ಟ್ ಕನ್ನಡ ಆಡಿಯೋ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಪ್ಲೇ ಆಗುತ್ತಿದೆ...'
+                      : '🔊 Default audio is automatically reading this consent page aloud in your selected language...'}
+                  </span>
+                </div>
+                <span className="font-mono bg-amber-200/80 px-2 py-0.5 rounded text-[11px] font-black uppercase">
+                  {language.toUpperCase()} TTS ACTIVE
+                </span>
+              </div>
+            )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-sm text-slate-700 space-y-3 mb-8">
-              <p>• {t('consentText1')}</p>
-              <p>• {t('consentText2')}</p>
-              <p>• {t('consentText3')}</p>
+              <p className="flex items-start">
+                <span className="mr-2 text-sky-600 font-bold">•</span>
+                <span>{t('consentText1')}</span>
+              </p>
+              <p className="flex items-start">
+                <span className="mr-2 text-sky-600 font-bold">•</span>
+                <span>{t('consentText2')}</span>
+              </p>
+              <p className="flex items-start">
+                <span className="mr-2 text-sky-600 font-bold">•</span>
+                <span>{t('consentText3')}</span>
+              </p>
+            </div>
+
+            {/* Optional Manual OPD Token Input */}
+            <div className="mb-8">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                OPD Token Number / Registration ID (Optional)
+              </label>
+              <input
+                type="text"
+                value={manualOpdToken}
+                onChange={(e) => setManualOpdToken(e.target.value)}
+                placeholder="e.g. OPD-105 (Leave blank to auto-generate)"
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono transition shadow-sm"
+              />
+              <p className="text-xs text-slate-500 mt-1.5 ml-1">If the hospital generated an OPD token for you at the counter, enter it here. Otherwise, we will generate one.</p>
             </div>
 
             <label className="flex items-center space-x-3 p-4 bg-sky-50/70 border border-sky-200 rounded-2xl cursor-pointer mb-8">
@@ -1470,228 +2058,247 @@ export default function KioskApp({ onSwitchToDoctor }) {
             </button>
           </div>
         )}
-
         {/* ------------------------------------------------------------------ */}
-        {/* STEP 5: CLINICAL QUESTIONING LOOP */}
-        {/* ------------------------------------------------------------------ */}
-        {step === 'QUESTIONS' && currentQuestion && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 max-w-4xl mx-auto w-full fade-in flex flex-col justify-between min-h-[600px]">
-            
-            {/* Progress Bar & Sequence */}
-            <div>
-              <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-500 mb-2">
-                <span>
-                  {t('questionProgress')} {progress.current} {t('of')} {progress.total}
-                </span>
-                <span className="text-sky-700 font-extrabold">{progress.percent}%</span>
-              </div>
-              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-8">
-                <div
-                  className="h-full bg-gradient-to-r from-sky-500 to-teal-500 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.percent}%` }}
-                />
-              </div>
+        {step === 'QUESTIONS' && currentQuestion && (() => {
+          const qText = currentQuestion.text || currentQuestion.questionText || '';
+          const rawType = (currentQuestion.type || currentQuestion.questionType || 'single_choice').toLowerCase();
+          const qType = rawType === 'single_select' ? 'single_choice' : rawType === 'multi_select' ? 'multiple_choice' : rawType;
 
-              {/* Question Header & TTS Read-Out */}
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md border border-sky-200">
-                    {system === 'ayush' ? (language === 'hi' ? 'आयुष दशविध' : language === 'kn' ? 'ಆಯುಷ್ ದಶವಿಧ' : 'AYUSH Dashavidha') : (language === 'hi' ? 'एलोपैथी ओपीडी' : language === 'kn' ? 'ಅಲೋಪತಿ OPD' : 'Allopathy OPD')} • {currentQuestion.clinicalField}
-                  </span>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2 leading-snug">
-                    {currentQuestion.text}
-                  </h2>
-                  {currentQuestion.helpText && (
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                      {currentQuestion.helpText}
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleReplayAudio}
-                  title={t('replayQuestion')}
-                  className="p-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-2xl transition shrink-0 kiosk-touch-button"
-                >
-                  <Volume2 className="w-6 h-6 text-sky-600" />
-                </button>
-              </div>
-
-              {/* VOICE INTERACTION SECTION */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={toggleVoiceListening}
-                      className={`px-5 py-3 rounded-xl font-bold text-sm sm:text-base flex items-center space-x-2 transition ${
-                        isListening
-                          ? 'bg-red-600 text-white animate-pulse shadow-lg'
-                          : 'bg-sky-600 hover:bg-sky-700 text-white shadow-md'
-                      }`}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="w-5 h-5" />
-                          <span>{t('stopListening')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-5 h-5" />
-                          <span>{t('tapToSpeak')}</span>
-                        </>
-                      )}
-                    </button>
-                    <span className="text-xs text-slate-500 font-medium">
-                      {isListening ? t('listening') : (language === 'hi' ? '(माइक तैयार है)' : language === 'kn' ? '(ಮೈಕ್ರೊಫೋನ್ ಸಿದ್ಧವಾಗಿದೆ)' : '(Microphone input ready)')}
-                    </span>
-                  </div>
-
-                  <VoiceWaveform isListening={isListening} />
-                </div>
-
-                {/* Live Speech Recognition Transcript */}
-                {voiceTranscript && (
-                  <div className="mt-3 pt-3 border-t border-slate-200 text-sm text-slate-800">
-                    <span className="font-bold text-sky-700">{t('recognizedText')} </span>
-                    <span className="italic font-medium">"{voiceTranscript}"</span>
-                  </div>
-                )}
-              </div>
-
-              {/* QUESTION INPUT RENDERING ACCORDING TO QUESTION TYPE */}
+          return (
+            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 max-w-4xl mx-auto w-full fade-in flex flex-col justify-between min-h-[600px]">
               
-              {/* Type 1: Single Choice Options - Instant Auto-Submit */}
-              {currentQuestion.type === 'single_choice' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                  {currentQuestion.options?.map((opt) => (
-                    <button
-                      key={opt.value}
-                      disabled={isLoading}
-                      onClick={() => handleAutoSubmit(opt.value)}
-                      className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
-                        selectedOption === opt.value
-                          ? 'border-sky-600 bg-sky-50 text-sky-950 shadow-md ring-2 ring-sky-300 scale-[1.01]'
-                          : 'border-slate-200 hover:border-sky-400 text-slate-800 bg-white hover:bg-sky-50/40'
-                      }`}
-                    >
-                      <span>{opt.text}</span>
-                      {selectedOption === opt.value ? (
-                        <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2 animate-bounce" />
-                      ) : (
-                        <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 ml-2" />
-                      )}
-                    </button>
-                  ))}
+              {/* Progress Bar & Sequence */}
+              <div>
+                <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-500 mb-2">
+                  <span>
+                    {t('questionProgress')} {progress.current} {t('of')} {progress.total}
+                  </span>
+                  <span className="text-sky-700 font-extrabold">{progress.percent}%</span>
                 </div>
-              )}
-
-              {/* Type 2: Yes / No Big Touch Buttons - Instant Auto-Submit */}
-              {currentQuestion.type === 'yes_no' && (
-                <div className="grid grid-cols-2 gap-6 my-8">
-                  <button
-                    disabled={isLoading}
-                    onClick={() => handleAutoSubmit('yes')}
-                    className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
-                      selectedOption === 'yes'
-                        ? 'border-red-500 bg-red-50 text-red-700 ring-4 ring-red-100 scale-[1.02]'
-                        : 'border-slate-200 hover:border-red-300 text-slate-800 bg-white hover:bg-red-50/40'
-                    }`}
-                  >
-                    {language === 'hi' ? 'हाँ (YES)' : language === 'kn' ? 'ಹೌದು (YES)' : 'YES'}
-                  </button>
-
-                  <button
-                    disabled={isLoading}
-                    onClick={() => handleAutoSubmit('no')}
-                    className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
-                      selectedOption === 'no'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100 scale-[1.02]'
-                        : 'border-slate-200 hover:border-emerald-300 text-slate-800 bg-white hover:bg-emerald-50/40'
-                    }`}
-                  >
-                    {language === 'hi' ? 'नहीं (NO)' : language === 'kn' ? 'ಇಲ್ಲ (NO)' : 'NO'}
-                  </button>
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-8">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-500 to-teal-500 rounded-full transition-all duration-300"
+                    style={{ width: `${progress.percent}%` }}
+                  />
                 </div>
-              )}
 
-              {/* Type 3: Multiple Choice */}
-              {currentQuestion.type === 'multiple_choice' && (
-                <div className="space-y-4 mb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {currentQuestion.options?.map((opt) => {
-                      const isChecked = selectedMultiple.includes(opt.value);
-                      return (
-                        <button
-                          key={opt.value}
-                          onClick={() => {
-                            if (isChecked) {
-                              setSelectedMultiple(selectedMultiple.filter(v => v !== opt.value));
-                            } else {
-                              setSelectedMultiple([...selectedMultiple, opt.value]);
-                            }
-                          }}
-                          className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
-                            isChecked
-                              ? 'border-sky-600 bg-sky-50 text-sky-950 ring-2 ring-sky-200'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
-                          }`}
-                        >
-                          <span>{opt.text}</span>
-                          <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                            isChecked ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'
-                          }`}>
-                            {isChecked && <CheckCircle2 className="w-5 h-5" />}
-                          </div>
-                        </button>
-                      );
-                    })}
+                {/* Question Header & TTS Read-Out */}
+                <div className="flex items-start justify-between gap-4 mb-6">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md border border-sky-200">
+                      {system === 'ayush' ? (language === 'hi' ? 'आयुष दशविध' : language === 'kn' ? 'ಆಯುಷ್ ದಶವಿಧ' : 'AYUSH Dashavidha') : (language === 'hi' ? 'एलोपैथी ओपीडी' : language === 'kn' ? 'ಅಲೋಪತಿ OPD' : 'Allopathy OPD')} • {currentQuestion.clinicalField}
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2 leading-snug">
+                      {qText}
+                    </h2>
+                    {currentQuestion.helpText && (
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                        {currentQuestion.helpText}
+                      </p>
+                    )}
                   </div>
-                  {selectedMultiple.length > 0 && (
-                    <button
-                      disabled={isLoading}
-                      onClick={() => handleSubmitAnswer()}
-                      className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-md transition flex items-center justify-center space-x-2"
-                    >
-                      <span>{language === 'hi' ? 'उत्तर की पुष्टि करें' : language === 'kn' ? 'ದೃಢೀಕರಿಸಿ' : 'Confirm Selected Answers'}</span>
-                      <ArrowRight className="w-5 h-5" />
-                    </button>
+
+                  <button
+                    onClick={handleReplayAudio}
+                    title={t('replayQuestion')}
+                    className="p-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-2xl transition shrink-0 kiosk-touch-button"
+                  >
+                    <Volume2 className="w-6 h-6 text-sky-600" />
+                  </button>
+                </div>
+
+                {/* VOICE INTERACTION SECTION */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={toggleVoiceListening}
+                        className={`px-5 py-3 rounded-xl font-bold text-sm sm:text-base flex items-center space-x-2 transition ${
+                          isListening
+                            ? 'bg-red-600 text-white animate-pulse shadow-lg'
+                            : 'bg-sky-600 hover:bg-sky-700 text-white shadow-md'
+                        }`}
+                      >
+                        {isListening ? (
+                          <>
+                            <MicOff className="w-5 h-5" />
+                            <span>{t('stopListening')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="w-5 h-5" />
+                            <span>{t('tapToSpeak')}</span>
+                          </>
+                        )}
+                      </button>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {isListening ? t('listening') : (language === 'hi' ? '(माइक तैयार है)' : language === 'kn' ? '(ಮೈಕ್ರೊಫೋನ್ ಸಿದ್ಧವಾಗಿದೆ)' : '(Microphone input ready)')}
+                      </span>
+                    </div>
+
+                    <VoiceWaveform isListening={isListening} />
+                  </div>
+
+                  {/* Live Speech Recognition Transcript */}
+                  {voiceTranscript && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 text-sm text-slate-800">
+                      <span className="font-bold text-sky-700">{t('recognizedText')} </span>
+                      <span className="italic font-medium">"{voiceTranscript}"</span>
+                    </div>
+                  )}
+
+                  {/* Microphone Error / Permission Alert Banner */}
+                  {micErrorMsg && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{micErrorMsg}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setMicErrorMsg(''); toggleVoiceListening(); }}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-extrabold text-[11px] shrink-0 ml-2"
+                      >
+                        Try Again
+                      </button>
+                    </div>
                   )}
                 </div>
-              )}
 
-              {/* Type 4: Pain Scale Touch Buttons (1-10) - Instant Auto-Submit */}
-              {currentQuestion.type === 'number' && (
-                <div className="my-6 bg-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-4">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    {language === 'hi' ? 'दर्द का स्तर चुनें (1 हल्का - 10 अत्यधिक)' : language === 'kn' ? 'ನೋವಿನ ಪ್ರಮಾಣವನ್ನು ಆರಿಸಿ (1-10)' : 'Touch a number to rate your pain severity (1-10)'}
-                  </div>
-                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                {/* QUESTION INPUT RENDERING ACCORDING TO QUESTION TYPE */}
+                
+                {/* Type 1: Single Choice Options - Instant Auto-Submit */}
+                {qType === 'single_choice' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    {currentQuestion.options?.map((opt) => (
                       <button
-                        key={num}
-                        type="button"
+                        key={opt.value}
                         disabled={isLoading}
-                        onClick={() => handleAutoSubmit(String(num))}
-                        className={`p-3 sm:py-4 rounded-xl border-2 font-black text-lg sm:text-xl transition kiosk-touch-button ${
-                          num >= 8
-                            ? 'border-red-300 hover:border-red-600 hover:bg-red-50 text-red-700 bg-white'
-                            : num >= 5
-                            ? 'border-amber-300 hover:border-amber-600 hover:bg-amber-50 text-amber-700 bg-white'
-                            : 'border-slate-200 hover:border-sky-600 hover:bg-sky-50 text-slate-800 bg-white'
-                        } ${String(numberInput) === String(num) ? 'ring-2 ring-sky-500 bg-sky-100 font-extrabold' : ''}`}
+                        onClick={() => handleAutoSubmit(opt.value)}
+                        className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
+                          selectedOption === opt.value
+                            ? 'border-sky-600 bg-sky-50 text-sky-950 shadow-md ring-2 ring-sky-300 scale-[1.01]'
+                            : 'border-slate-200 hover:border-sky-400 text-slate-800 bg-white hover:bg-sky-50/40'
+                        }`}
                       >
-                        {num}
+                        <span>{opt.text}</span>
+                        {selectedOption === opt.value ? (
+                          <CheckCircle2 className="w-6 h-6 text-sky-600 shrink-0 ml-2 animate-bounce" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 ml-2" />
+                        )}
                       </button>
                     ))}
                   </div>
-                  <div className="flex justify-between text-xs font-bold text-slate-400 px-1">
-                    <span>1 ({language === 'hi' ? 'हल्का' : language === 'kn' ? 'ಕಡಿಮೆ' : 'Mild'})</span>
-                    <span>5 ({language === 'hi' ? 'मध्यम' : language === 'kn' ? 'ಮಧ್ಯಮ' : 'Moderate'})</span>
-                    <span className="text-red-600">10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Emergency'})</span>
+                )}
+
+                {/* Type 2: Yes / No Big Touch Buttons - Instant Auto-Submit */}
+                {qType === 'yes_no' && (
+                  <div className="grid grid-cols-2 gap-6 my-8">
+                    <button
+                      disabled={isLoading}
+                      onClick={() => handleAutoSubmit('yes')}
+                      className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
+                        selectedOption === 'yes'
+                          ? 'border-red-500 bg-red-50 text-red-700 ring-4 ring-red-100 scale-[1.02]'
+                          : 'border-slate-200 hover:border-red-300 text-slate-800 bg-white hover:bg-red-50/40'
+                      }`}
+                    >
+                      {language === 'hi' ? 'हाँ (YES)' : language === 'kn' ? 'ಹೌದು (YES)' : 'YES'}
+                    </button>
+
+                    <button
+                      disabled={isLoading}
+                      onClick={() => handleAutoSubmit('no')}
+                      className={`p-8 rounded-3xl border-4 text-center font-black text-2xl sm:text-3xl transition kiosk-touch-button ${
+                        selectedOption === 'no'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-4 ring-emerald-100 scale-[1.02]'
+                          : 'border-slate-200 hover:border-emerald-300 text-slate-800 bg-white hover:bg-emerald-50/40'
+                      }`}
+                    >
+                      {language === 'hi' ? 'नहीं (NO)' : language === 'kn' ? 'ಇಲ್ಲ (NO)' : 'NO'}
+                    </button>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Type 3: Multiple Choice */}
+                {qType === 'multiple_choice' && (
+                  <div className="space-y-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {currentQuestion.options?.map((opt) => {
+                        const isChecked = selectedMultiple.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => {
+                              if (isChecked) {
+                                setSelectedMultiple(selectedMultiple.filter(v => v !== opt.value));
+                              } else {
+                                setSelectedMultiple([...selectedMultiple, opt.value]);
+                              }
+                            }}
+                            className={`p-4 rounded-2xl border-2 text-left font-bold text-base transition-all kiosk-touch-button flex items-center justify-between ${
+                              isChecked
+                                ? 'border-sky-600 bg-sky-50 text-sky-950 ring-2 ring-sky-200'
+                                : 'border-slate-200 hover:border-slate-300 text-slate-800 bg-white'
+                            }`}
+                          >
+                            <span>{opt.text}</span>
+                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
+                              isChecked ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'
+                            }`}>
+                              {isChecked && <CheckCircle2 className="w-5 h-5" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedMultiple.length > 0 && (
+                      <button
+                        disabled={isLoading}
+                        onClick={() => handleSubmitAnswer()}
+                        className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-md transition flex items-center justify-center space-x-2"
+                      >
+                        <span>{language === 'hi' ? 'उत्तर की पुष्टि करें' : language === 'kn' ? 'ದೃಢೀಕರಿಸಿ' : 'Confirm Selected Answers'}</span>
+                        <ArrowRight className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Type 4: Pain Scale Touch Buttons (1-10) - Instant Auto-Submit */}
+                {qType === 'number' && (
+                  <div className="my-6 bg-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      {language === 'hi' ? 'दर्द का स्तर चुनें (1 हल्का - 10 अत्यधिक)' : language === 'kn' ? 'ನೋವಿನ ಪ್ರಮಾಣವನ್ನು ಆರಿಸಿ (1-10)' : 'Touch a number to rate your pain severity (1-10)'}
+                    </div>
+                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => handleAutoSubmit(String(num))}
+                          className={`p-3 sm:py-4 rounded-xl border-2 font-black text-lg sm:text-xl transition kiosk-touch-button ${
+                            num >= 8
+                              ? 'border-red-300 hover:border-red-600 hover:bg-red-50 text-red-700 bg-white'
+                              : num >= 5
+                              ? 'border-amber-300 hover:border-amber-600 hover:bg-amber-50 text-amber-700 bg-white'
+                              : 'border-slate-200 hover:border-sky-600 hover:bg-sky-50 text-slate-800 bg-white'
+                          } ${String(numberInput) === String(num) ? 'ring-2 ring-sky-500 bg-sky-100 font-extrabold' : ''}`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-slate-400 px-1">
+                      <span>1 ({language === 'hi' ? 'हल्का' : language === 'kn' ? 'ಕಡಿಮೆ' : 'Mild'})</span>
+                      <span>5 ({language === 'hi' ? 'मध्यम' : language === 'kn' ? 'ಮಧ್ಯಮ' : 'Moderate'})</span>
+                      <span className="text-red-600">10 ({language === 'hi' ? 'असहनीय' : language === 'kn' ? 'ಅಸಹನೀಯ' : 'Emergency'})</span>
+                    </div>
+                  </div>
+                )}
 
               {/* Text Input Fallback with Enter key / Send button */}
               <div className="mt-4 relative">
@@ -1749,7 +2356,8 @@ export default function KioskApp({ onSwitchToDoctor }) {
             </div>
 
           </div>
-        )}
+          );
+        })()}
 
         {/* ------------------------------------------------------------------ */}
         {/* STEP 6: PREVIOUS MEDICAL DOCUMENTS UPLOAD & OCR */}
@@ -1782,56 +2390,125 @@ export default function KioskApp({ onSwitchToDoctor }) {
               ))}
             </div>
 
-            {/* Upload Area */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-3 border-dashed border-slate-300 hover:border-sky-500 bg-slate-50 hover:bg-sky-50/50 rounded-3xl p-8 text-center cursor-pointer transition mb-6"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-              <div className="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-4">
-                <Upload className="w-8 h-8" />
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            {/* Upload Area / Live Photo & PDF Preview Card */}
+            {uploadedDocs.length > 0 ? (
+              <div className="bg-slate-900 text-white rounded-3xl p-6 mb-6 shadow-2xl border-2 border-sky-400/40 relative overflow-hidden fade-in">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 rounded-xl bg-sky-500/20 text-sky-400 font-mono font-bold text-xs uppercase border border-sky-500/30 flex items-center space-x-1">
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>{uploadedDocs[uploadedDocs.length - 1].isPdf ? 'PDF Document' : 'Prescription Image'}</span>
+                    </span>
+                    <span className="text-xs text-slate-200 font-extrabold truncate max-w-[200px] sm:max-w-xs">
+                      {uploadedDocs[uploadedDocs.length - 1].fileName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0">
+                    <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-black flex items-center space-x-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Digitized</span>
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition shadow"
+                    >
+                      + Replace / Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Photo or PDF Viewer Frame */}
+                <div className="bg-slate-950 rounded-2xl p-2 border border-slate-800 flex items-center justify-center max-h-[420px] overflow-hidden relative group">
+                  {uploadedDocs[uploadedDocs.length - 1].isPdf ? (
+                    <iframe
+                      src={uploadedDocs[uploadedDocs.length - 1].previewUrl || uploadedDocs[uploadedDocs.length - 1].fileUrl}
+                      className="w-full h-[350px] rounded-xl border-none"
+                      title="PDF Document Preview"
+                    />
+                  ) : (
+                    <img
+                      src={uploadedDocs[uploadedDocs.length - 1].previewUrl || uploadedDocs[uploadedDocs.length - 1].fileUrl}
+                      alt="Uploaded Medical Prescription Preview"
+                      className="max-h-[380px] w-auto max-w-full object-contain rounded-xl shadow-lg transition-transform duration-300 group-hover:scale-[1.01]"
+                    />
+                  )}
+                </div>
+
+                {/* Footer instructions */}
+                <div className="mt-3 flex items-center justify-between text-xs text-slate-400 font-medium">
+                  <span>📸 Photo uploaded & digitized via Medical AI.</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-sky-400 hover:text-sky-300 font-bold underline ml-2"
+                  >
+                    + Add Another Document
+                  </button>
+                </div>
               </div>
-              <p className="font-bold text-slate-800 text-base mb-1">
-                {uploadingDoc ? t('uploadingDoc') : t('uploadCardText')}
-              </p>
-              <p className="text-xs text-slate-400">
-                {t('supportedFormats')}
-              </p>
-            </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-3 border-dashed border-slate-300 hover:border-sky-500 bg-slate-50 hover:bg-sky-50/50 rounded-3xl p-8 text-center cursor-pointer transition mb-6"
+              >
+                <div className="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-4">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <p className="font-bold text-slate-800 text-base mb-1">
+                  {uploadingDoc ? t('uploadingDoc') : t('uploadCardText')}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {t('supportedFormats')}
+                </p>
+              </div>
+            )}
 
             {/* List of Uploaded and OCR Digitized Docs */}
             {uploadedDocs.length > 0 && (
               <div className="space-y-4 mb-8">
-                <h4 className="font-bold text-slate-900 text-sm">
+                <h4 className="font-bold text-slate-900 text-sm flex items-center">
+                  <Sparkles className="w-4 h-4 mr-1.5 text-sky-600" />
                   {t('extractedDataTitle')}
                 </h4>
                 {uploadedDocs.map((doc, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs">
-                    <div className="flex items-center justify-between font-bold text-slate-800 mb-2">
+                  <div key={idx} className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+                    <div className="flex items-center justify-between font-bold text-slate-800 border-b border-slate-200/80 pb-2">
                       <span className="flex items-center space-x-1.5 text-sky-700">
-                        <FileText className="w-4 h-4 mr-1" />
+                        <FileText className="w-4 h-4 mr-1 text-sky-600" />
                         {doc.fileName} ({doc.documentType})
                       </span>
-                      <span className="text-emerald-600 flex items-center">
-                        <CheckCircle2 className="w-4 h-4 mr-1" /> {language === 'hi' ? 'डिजिटाइज़्ड' : language === 'kn' ? 'ಡಿಜಿಟೈಸ್ ಮಾಡಲಾಗಿದೆ' : 'Digitized'}
+                      <span className="text-emerald-600 flex items-center font-black">
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> {language === 'hi' ? 'डिजिटाइज़्ड' : language === 'kn' ? 'ಡಿಜಿಟೈಸ್ ಮಾಡಲಾಗಿದೆ' : 'Digitized via OCR AI'}
                       </span>
                     </div>
 
-                    {doc.extractions?.diagnoses?.length > 0 && (
-                      <p className="text-slate-600">
-                        <strong>{language === 'hi' ? 'निदान:' : language === 'kn' ? 'ರೋಗನಿರ್ಣಯ:' : 'Diagnoses:'}</strong> {doc.extractions.diagnoses.join(', ')}
-                      </p>
-                    )}
                     {doc.extractions?.medications?.length > 0 && (
-                      <p className="text-slate-600 mt-1">
-                        <strong>{language === 'hi' ? 'दवाएं:' : language === 'kn' ? 'ಔಷಧಿಗಳು:' : 'Medications:'}</strong> {doc.extractions.medications.map(m => `${m.name} (${m.dosage})`).join(', ')}
-                      </p>
+                      <div className="space-y-1 pt-1">
+                        <span className="font-bold text-slate-700 block uppercase text-[10px] text-sky-700">Extracted Prescription Medications:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {doc.extractions.medications.map((m, mIdx) => (
+                            <div key={mIdx} className="p-2.5 bg-white border border-slate-200 rounded-xl font-medium flex items-center justify-between">
+                              <span className="font-bold text-slate-900 flex items-center space-x-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>{m.name}</span>
+                              </span>
+                              <span className="text-sky-800 font-mono text-[11px] font-bold">{m.dosage} • {m.frequency}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -1857,35 +2534,186 @@ export default function KioskApp({ onSwitchToDoctor }) {
         )}
 
         {/* ------------------------------------------------------------------ */}
-        {/* STEP 7: SESSION COMPLETED & OPD TOKEN */}
+        {/* STEP 7: SESSION COMPLETED, OPD TOKEN & PRESCRIBED REPORT DATA */}
         {/* ------------------------------------------------------------------ */}
         {step === 'DONE' && (
-          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-slate-200 text-center max-w-2xl mx-auto w-full fade-in">
-            <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="w-12 h-12" />
+          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 text-center max-w-4xl mx-auto w-full fade-in space-y-8">
+            
+            <div className="flex flex-col items-center">
+              <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4 shadow-sm">
+                <CheckCircle2 className="w-12 h-12" />
+              </div>
+
+              <h1 className="text-3xl font-extrabold text-slate-900 mb-1">
+                {t('doneTitle')}
+              </h1>
+              <p className="text-slate-500 text-sm max-w-md">
+                {t('doneSubtitle')}
+              </p>
             </div>
 
-            <h1 className="text-3xl font-extrabold text-slate-900 mb-2">
-              {t('doneTitle')}
-            </h1>
-            <p className="text-slate-500 text-base mb-8">
-              {t('doneSubtitle')}
-            </p>
-
             {/* Token Badge */}
-            <div className="bg-gradient-to-tr from-sky-50 to-teal-50 border-2 border-sky-200 rounded-3xl p-6 mb-8 max-w-md mx-auto">
+            <div className="bg-gradient-to-tr from-sky-50 to-teal-50 border-2 border-sky-200 rounded-3xl p-6 max-w-md mx-auto shadow-sm">
               <div className="text-xs uppercase font-black text-sky-600 tracking-wider mb-1">
                 {t('opdTokenLabel')}
               </div>
               <div className="text-5xl font-black text-slate-900 tracking-tight">
                 {opdToken || 'OPD-101'}
               </div>
-              <div className="text-xs text-slate-500 mt-2">
-                {language === 'hi' ? 'रोगी' : language === 'kn' ? 'ರೋಗಿ' : 'Patient'}: <span className="font-bold text-slate-700">{selectedPatient?.full_name || 'Ramesh Sharma'}</span> | {language === 'hi' ? 'पद्धति' : language === 'kn' ? 'ವಿಭಾಗ' : 'System'}: <span className="uppercase font-bold text-sky-700">{system}</span>
+              <div className="text-xs text-slate-500 mt-2 font-medium">
+                {language === 'hi' ? 'रोगी' : language === 'kn' ? 'ರೋಗಿ' : 'Patient'}: <span className="font-bold text-slate-800">{selectedPatient?.full_name || 'Ramesh Sharma'}</span> | {language === 'hi' ? 'पद्धति' : language === 'kn' ? 'ವಿಭಾಗ' : 'System'}: <span className="uppercase font-bold text-sky-700">{system}</span>
               </div>
             </div>
 
-            <p className="text-slate-600 text-sm font-medium mb-8 max-w-lg mx-auto">
+            {/* ---------------------------------------------------------------- */}
+            {/* MEDICAL PRESCRIBED REPORT DATA CARD */}
+            {/* ---------------------------------------------------------------- */}
+            <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-left shadow-sm space-y-6">
+              
+              {/* Header Banner */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-sky-700 uppercase tracking-wider">
+                    <Hospital className="w-4 h-4 text-sky-600" />
+                    <span>{selectedHospital ? selectedHospital.name : 'Manipal Hospital HAL Old Airport Road, Bengaluru'}</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+                    {language === 'hi' ? 'चिकित्सीय पर्चा एवं डिजिटल स्वास्थ्य रिपोर्ट' : language === 'kn' ? 'ವೈದ್ಯಕೀಯ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಮತ್ತು ಡಿಜಿಟಲ್ ಹೆಲ್ತ್ ವರದಿ' : 'Medical Prescription & Digital Health Report'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    OPD Token: <span className="font-bold text-slate-800 font-mono">{opdToken || 'OPD-101'}</span> • ABHA ID: <span className="font-bold text-slate-800 font-mono">{selectedPatient?.abha_id || '91-2345-6789-0123'}</span>
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex items-center space-x-2">
+                  <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide flex items-center space-x-1.5 ${
+                    isRedFlag ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}>
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>{isRedFlag ? 'STAT Triage Alert' : 'Routine OPD Intake'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Patient Demographics Box */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Patient Name</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPatient?.full_name || 'Ramesh Sharma'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Age / Gender</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPatient?.age || 54} Yrs / {selectedPatient?.gender || 'Male'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Clinical Protocol</span>
+                  <span className="font-extrabold text-sky-700 text-sm uppercase">{system === 'ayush' ? 'AYUSH SACTP' : 'Allopathy SOCRATES'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase block text-[10px]">Blood Group</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPatient?.blood_group || 'B+'}</span>
+                </div>
+              </div>
+
+              {/* Diagnosis & Clinical Summary */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center">
+                  <Stethoscope className="w-4 h-4 mr-1.5 text-sky-600" />
+                  {language === 'hi' ? 'आकलन एवं निदान' : language === 'kn' ? 'ಮೌಲ್ಯಮಾಪನ ಮತ್ತು ರೋಗನಿರ್ಣಯ' : 'Evaluated Diagnosis & Clinical Summary'}
+                </h4>
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 text-xs space-y-2">
+                  <div>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {summaryReportData?.summary?.prescribed_report?.diagnosis || summaryReportData?.summary?.chief_complaint || 'Ajeerna (Digestive Dysfunction)'}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 font-medium leading-relaxed">
+                    {summaryReportData?.summary?.hpi_summary || 'Patient completed standardized clinical case-taking. Symptoms and risk factors evaluated for physician consultation.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Prescribed Formulations / Medications */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center">
+                  <Pill className="w-4 h-4 mr-1.5 text-teal-600" />
+                  {language === 'hi' ? 'अनुशंसित दवाएं एवं औषधियां' : language === 'kn' ? 'ಶಿಫಾರಸು ಮಾಡಿದ ಔಷಧಿಗಳು' : 'Prescribed Formulations & Medications'}
+                </h4>
+                
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                  <table className="w-full text-left text-xs min-w-[500px]">
+                    <thead className="bg-slate-100 text-slate-600 font-extrabold border-b border-slate-200 uppercase text-[10px]">
+                      <tr>
+                        <th className="p-3">Medication / Formulation</th>
+                        <th className="p-3">Dosage</th>
+                        <th className="p-3">Frequency</th>
+                        <th className="p-3">Directions / Instructions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                      {(summaryReportData?.summary?.prescribed_report?.prescribed_medications || [
+                        { name: 'Triphala Churna', dosage: '3g (1/2 tsp)', frequency: 'Twice daily', instructions: 'Take with warm water' },
+                        { name: 'Shunthi Powder', dosage: '2g', frequency: 'Before meals', instructions: 'Take for Agni Deepana' },
+                        { name: 'Sanjivani Vati', dosage: '1 tablet', frequency: 'Morning & Evening', instructions: 'Digestive Pachana support' }
+                      ]).map((rx, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80">
+                          <td className="p-3 font-bold text-slate-900 flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            <span>{rx.name}</span>
+                          </td>
+                          <td className="p-3 font-mono">{rx.dosage}</td>
+                          <td className="p-3 font-semibold text-sky-800">{rx.frequency}</td>
+                          <td className="p-3 text-slate-500">{rx.instructions}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Diet, Lifestyle & Yoga Therapy */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl text-xs space-y-1">
+                  <span className="font-extrabold text-emerald-900 block text-xs">
+                    🥗 {language === 'hi' ? 'आहार एवं जीवनशैली सुझाव' : language === 'kn' ? 'ಆಹಾರ ಮತ್ತು ಜೀವನಶೈಲಿ ಮಾರ್ಗದರ್ಶನ' : 'Recommended Diet & Lifestyle'}
+                  </span>
+                  <p className="text-emerald-800 font-medium">
+                    {summaryReportData?.summary?.prescribed_report?.diet_lifestyle || 'Avoid heavy, oily foods; consume warm light meals; stay hydrated.'}
+                  </p>
+                </div>
+
+                {system === 'ayush' && (
+                  <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl text-xs space-y-1">
+                    <span className="font-extrabold text-teal-900 block text-xs">
+                      🧘 {language === 'hi' ? 'योग एवं व्यायाम' : language === 'kn' ? 'ಯೋಗ ಮತ್ತು ದೈಹಿಕ ವ್ಯಾಯಾಮ' : 'Yoga & Physical Therapy Protocol'}
+                    </span>
+                    <p className="text-teal-800 font-medium">
+                      {summaryReportData?.summary?.prescribed_report?.yoga_therapy || 'Vajrasana after meals, Pawanmuktasana, Anulom Vilom.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Report Actions Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 shadow"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{language === 'hi' ? 'रिपोर्ट प्रिंट करें' : language === 'kn' ? 'ವರದಿ ಮುದ್ರಿಸಿ' : 'Print Medical Report'}</span>
+                </button>
+
+                <div className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-300 flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>ABDM FHIR R4 Bundle Digitized</span>
+                </div>
+              </div>
+
+            </div>
+
+            <p className="text-slate-600 text-sm font-medium max-w-lg mx-auto">
               {t('proceedInstructions')}
             </p>
 
@@ -1897,35 +2725,18 @@ export default function KioskApp({ onSwitchToDoctor }) {
                   setSessionId(null);
                   setIsRedFlag(false);
                   setActiveRedFlags([]);
+                  setSummaryReportData(null);
                 }}
-                className="py-4 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition"
+                className="py-4 px-6 bg-sky-600 hover:bg-sky-700 text-white shadow-lg font-bold rounded-2xl transition"
               >
                 {t('startNewSession')}
-              </button>
-
-              <button
-                onClick={onSwitchToDoctor}
-                className="py-4 px-6 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-lg transition flex items-center justify-center space-x-2"
-              >
-                <Stethoscope className="w-5 h-5" />
-                <span>{t('doctorPortalBtn')}</span>
               </button>
             </div>
           </div>
         )}
 
       </main>
-
-      {/* Persistent Bottom Bar to Switch to Doctor Dashboard */}
-      <footer className="bg-white border-t border-slate-200 py-3 px-4 text-center">
-        <button
-          onClick={onSwitchToDoctor}
-          className="inline-flex items-center space-x-2 text-xs font-bold text-sky-700 hover:text-sky-900 px-4 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 transition"
-        >
-          <Stethoscope className="w-4 h-4" />
-          <span>{language === 'hi' ? 'डॉक्टर ओपीडी वर्कस्टेशन पर जाएं (केस रिकॉर्ड और FHIR देखें)' : language === 'kn' ? 'ವೈದ್ಯರ OPD ವರ್ಕ್‌ಸ್ಟೇಷನ್‌ಗೆ ಬದಲಾಯಿಸಿ (ಕೇಸ್ ದಾಖಲೆಗಳು ಮತ್ತು FHIR ವೀಕ್ಷಿಸಿ)' : 'Switch to Doctor OPD Workstation (View Case Records & FHIR)'}</span>
-        </button>
-      </footer>
+      )}
 
     </div>
   );

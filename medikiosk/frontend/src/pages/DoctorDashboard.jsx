@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
   Stethoscope, AlertOctagon, CheckCircle, FileText, Send,
-  Download, Eye, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
+  Download, Eye, EyeOff, Edit3, ShieldAlert, ArrowLeft, RefreshCw,
   Clock, User, HeartPulse, Flower2, ChevronRight, Activity, Calendar,
-  BellRing, Volume2, VolumeX, AlertTriangle, X
+  BellRing, Volume2, VolumeX, AlertTriangle, X, Printer, Share2, Building2, Smartphone
 } from 'lucide-react';
 import { DoctorService } from '../services/api';
 import FhirModal from '../components/FhirModal';
-import { 
-  subscribeToEmergencyAlerts, 
-  getUnacknowledgedAlerts, 
-  acknowledgeAlert, 
-  playAlertChime 
+import AbdmBlockchainTransferModal from '../components/AbdmBlockchainTransferModal';
+import {
+  subscribeToEmergencyAlerts,
+  getUnacknowledgedAlerts,
+  acknowledgeAlert,
+  playAlertChime
 } from '../services/alertSync';
 
-export default function DoctorDashboard({ onSwitchToKiosk }) {
+export default function DoctorDashboard({ onSwitchToKiosk, onSwitchToHospital }) {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [dossier, setDossier] = useState(null);
@@ -23,6 +24,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
+  const [isPrivacyMode, setIsPrivacyMode] = useState(false);
 
   // Editable Doctor Fields
   const [provisionalDiagnosis, setProvisionalDiagnosis] = useState('');
@@ -36,6 +38,13 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
   // ABDM Receipt Modal State
   const [abdmReceipt, setAbdmReceipt] = useState(null);
   const [showAbdmReceipt, setShowAbdmReceipt] = useState(false);
+
+  // ABDM + Hybrid Blockchain Inter-Hospital Transfer Modal State
+  const [showAbdmBlockchainModal, setShowAbdmBlockchainModal] = useState(false);
+
+  // SMS Reminder State
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [smsStatus, setSmsStatus] = useState(null);
 
   // Real-Time Red Flag Emergency Alert State
   const [activeAlerts, setActiveAlerts] = useState([]);
@@ -102,8 +111,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       const res = await DoctorService.getSessionDetail(id);
       if (res.success) {
         setDossier(res);
-        setProvisionalDiagnosis(res.review?.provisional_diagnosis || (res.session.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out'));
-        setPhysicianNotes(res.summary?.physician_notes || res.review?.prescription_notes || '');
+        setProvisionalDiagnosis(res.review?.provisionalDiagnosis || res.review?.provisional_diagnosis || (res.session?.clinical_system === 'ayush' ? 'Ajeerna / Vata-Pitta Prakriti Imbalance' : 'Suspected Angina / Acute Coronary Syndrome Rule-Out'));
+        setPhysicianNotes(res.review?.clinicalNotes || res.summary?.physician_notes || res.review?.prescription_notes || '');
         setEditedHpi(res.summary?.hpi_summary || '');
       }
     } catch (err) {
@@ -120,13 +129,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
         sessionId: selectedSessionId,
         doctorId: 'DOC-AIIMS-108',
         doctorName: 'Dr. Vikramaditya Sharma, MD',
-        verificationStatus: 'verified',
         provisionalDiagnosis,
-        prescriptionNotes: physicianNotes,
-        editedSummary: {
-          hpi_summary: editedHpi,
-          physician_notes: physicianNotes
-        }
+        clinicalNotes: physicianNotes || editedHpi || 'Clinical review completed.',
+        verifiedMeds: [],
+        abdmConsentVerified: true
       });
 
       if (res.success) {
@@ -169,6 +175,9 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
         setAbdmReceipt(res);
         setShowAbdmReceipt(true);
         loadSessions();
+
+        // The system backend would automatically dispatch SMS alerts to the patient here.
+        // Alert logic is handled server-side.
       }
     } catch (err) {
       alert('Error pushing to mock ABDM: ' + err.message);
@@ -178,6 +187,27 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
   };
 
   // Alert Handlers
+  const handleSendSmsReminder = async () => {
+    setIsSendingSms(true);
+    setSmsStatus(null);
+    try {
+      const payload = {
+        phoneNumber: '+919334590992',
+        message: 'MediKiosk Alert: Your visit is confirmed. Please take your prescribed medicines. Follow-up is due in 5 days.'
+      };
+      const res = await DoctorService.sendSmsReminder(payload);
+      if (res.success) {
+        setSmsStatus({ type: 'success', msg: 'Real-time SMS reminder sent successfully!' });
+      } else {
+        setSmsStatus({ type: 'error', msg: res.message || 'Failed to send SMS.' });
+      }
+    } catch (err) {
+      setSmsStatus({ type: 'error', msg: 'An error occurred while sending the SMS.' });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
   const handleReviewAlertPatient = (alert) => {
     if (!alert) return;
     acknowledgeAlert(alert.id || alert.sessionId);
@@ -206,12 +236,76 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
 
+  // Safely resolve patient and session demographics for dossier and printable report
+  const selectedQueueSession = sessions.find(s => s.id === selectedSessionId) || {};
+  const dossierPatient = dossier?.patient || {};
+  const dossierSession = dossier?.session || selectedQueueSession || {};
+
+  // robust extraction handling empty strings as falsy
+  const resolve = (...args) => {
+    return args.find(a => {
+      if (a === undefined || a === null) return false;
+      if (typeof a === 'string' && a.trim() === '') return false;
+      return true;
+    }) || '';
+  };
+
+  const currentPatientName = resolve(
+    dossierPatient.full_name,
+    dossierPatient.name,
+    dossierSession.patient_name,
+    dossier?.patient_name,
+    selectedQueueSession.patient_name
+  ) || 'Walk-in Patient';
+
+  const currentAge = resolve(
+    dossierPatient.age,
+    dossierSession.age,
+    dossier?.age,
+    selectedQueueSession.age
+  );
+
+  const currentGender = resolve(
+    dossierPatient.gender,
+    dossierSession.gender,
+    dossier?.gender,
+    selectedQueueSession.gender
+  );
+
+  const currentToken = resolve(
+    dossierSession.opd_token_number,
+    dossierSession.opdToken,
+    dossier?.opd_token_number,
+    dossier?.opdToken,
+    selectedQueueSession.opd_token_number,
+    selectedQueueSession.opdToken
+  ) || 'OPD-101';
+
+  const currentSystem = resolve(
+    dossierSession.clinical_system,
+    dossier?.clinical_system,
+    selectedQueueSession.clinical_system
+  ) || 'allopathy';
+
+  const currentAbha = resolve(
+    dossierPatient.abha_id,
+    dossierSession.abha_id,
+    dossier?.abha_id,
+    selectedQueueSession.abha_id
+  ) || '91-XXXX-XXXX-XXXX';
+
+  const currentPhone = resolve(
+    dossierPatient.phone,
+    dossierSession.phone,
+    selectedQueueSession.phone
+  ) || 'N/A';
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-      
+
       {/* Top Header */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-16 py-2.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow">
               <Stethoscope className="w-6 h-6" />
@@ -229,7 +323,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
             {activeAlerts.length > 0 && (
               <button
                 type="button"
@@ -251,6 +345,36 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
             </button>
 
             <button
+              onClick={() => setIsPrivacyMode(!isPrivacyMode)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow ${isPrivacyMode ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'}`}
+              title="Toggle Patient Privacy Mode (Hide Names)"
+            >
+              {isPrivacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <span className="hidden sm:inline">{isPrivacyMode ? 'Privacy On' : 'Privacy Off'}</span>
+            </button>
+
+            {/* ABDM & Hybrid Blockchain Inter-Hospital Exchange Button */}
+            <button
+              onClick={() => setShowAbdmBlockchainModal(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black transition flex items-center space-x-1.5 shadow-md border border-emerald-400/40"
+              title="Open ABDM Inter-Hospital Data Transfer & Hybrid Blockchain Audit Ledger"
+            >
+              <Share2 className="w-4 h-4 text-emerald-200 shrink-0" />
+              <span className="hidden md:inline">ABDM & Blockchain Exchange</span>
+            </button>
+
+            {onSwitchToHospital && (
+              <button
+                onClick={onSwitchToHospital}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl text-xs font-black transition flex items-center space-x-1.5 shadow-md border border-indigo-400/40"
+                title="Open Hospital Node Dashboard (Request Data & Manage Incoming Transfers)"
+              >
+                <Building2 className="w-4 h-4 text-sky-200 shrink-0" />
+                <span className="hidden md:inline">Hospital Portal</span>
+              </button>
+            )}
+
+            <button
               onClick={onSwitchToKiosk}
               className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow"
             >
@@ -270,7 +394,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               🚨 CRITICAL ALERT AT KIOSK
             </span>
             <span className="truncate">
-              Patient: <strong>{activeAlerts[0].patientName}</strong> (Token: <strong className="font-mono underline">{activeAlerts[0].opdToken}</strong>) reported high-risk signs ({activeAlerts[0].redFlags?.[0]?.ruleName || 'Potential Warning Sign'})!
+              Patient: <strong>{isPrivacyMode ? 'Confidential' : activeAlerts[0].patientName}</strong> (Token: <strong className="font-mono underline">{isPrivacyMode ? '***' : activeAlerts[0].opdToken}</strong>) reported high-risk signs ({activeAlerts[0].redFlags?.[0]?.ruleName || 'Potential Warning Sign'})!
             </span>
           </div>
 
@@ -333,13 +457,13 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
-                <span>Patient: <strong className="text-slate-900 text-sm">{currentEmergencyAlert.patientName}</strong></span>
-                <span>Token: <strong className="text-red-700 font-mono text-base">{currentEmergencyAlert.opdToken}</strong></span>
+                <span>Patient: <strong className="text-slate-900 text-sm">{isPrivacyMode ? 'Confidential' : currentEmergencyAlert.patientName}</strong></span>
+                <span>Token: <strong className="text-red-700 font-mono text-base">{isPrivacyMode ? '***' : currentEmergencyAlert.opdToken}</strong></span>
               </div>
               <div className="text-xs text-slate-500 mb-2">
                 {currentEmergencyAlert.age ? `${currentEmergencyAlert.age} Yrs` : ''} {currentEmergencyAlert.gender ? `• ${currentEmergencyAlert.gender}` : ''} • Detected: {new Date(currentEmergencyAlert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
-              
+
               <div className="mt-2 pt-2 border-t border-red-200 space-y-1.5">
                 {currentEmergencyAlert.redFlags?.map((rf, idx) => (
                   <div key={idx} className="text-xs text-red-950 font-bold bg-white p-2.5 rounded-xl border border-red-200">
@@ -380,10 +504,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
       )}
 
       {/* Main Workspace Layout: Left Queue + Right Dossier */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-5 sm:gap-6">
 
         {/* LEFT PANEL: OPD PATIENT QUEUE */}
-        <div className="w-full lg:w-80 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 flex flex-col shrink-0 h-[calc(100vh-140px)]">
+        <div className="w-full lg:w-80 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 flex flex-col shrink-0 h-auto max-h-96 lg:max-h-none lg:h-[calc(100vh-140px)]">
           <div className="flex items-center justify-between mb-3 px-1">
             <h2 className="font-extrabold text-slate-900 text-base">OPD Queue</h2>
             <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">
@@ -397,11 +521,10 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <button
                 key={f}
                 onClick={() => setFilterSystem(f)}
-                className={`flex-1 py-1.5 rounded-lg font-bold capitalize transition ${
-                  filterSystem === f
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className={`flex-1 py-1.5 rounded-lg font-bold capitalize transition ${filterSystem === f
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
               >
                 {f}
               </button>
@@ -416,25 +539,23 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                 <div
                   key={s.id}
                   onClick={() => loadSessionDetail(s.id)}
-                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition text-left ${
-                    isSelected
-                      ? 'border-sky-600 bg-sky-50/50 shadow-sm'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition text-left ${isSelected
+                    ? 'border-sky-600 bg-sky-50/50 shadow-sm'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="font-black text-slate-900 text-sm">
-                        {s.patient_name || 'Walk-in Patient'}
+                        {isPrivacyMode ? 'Patient Confidential' : (s.patient_name || 'Walk-in Patient')}
                       </span>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        {s.age}Y / {s.gender} • Token: <strong className="text-slate-700 font-mono">{s.opd_token_number || 'N/A'}</strong>
+                        {isPrivacyMode ? '***' : `${s.age}Y / ${s.gender}`} • Token: <strong className="text-slate-700 font-mono">{isPrivacyMode ? '***' : (s.opd_token_number || 'N/A')}</strong>
                       </div>
                     </div>
 
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                      s.clinical_system === 'ayush' ? 'bg-teal-100 text-teal-800' : 'bg-sky-100 text-sky-800'
-                    }`}>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${s.clinical_system === 'ayush' ? 'bg-teal-100 text-teal-800' : 'bg-sky-100 text-sky-800'
+                      }`}>
                       {s.clinical_system}
                     </span>
                   </div>
@@ -457,24 +578,24 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
         </div>
 
         {/* RIGHT PANEL: CLINICAL DOSSIER */}
-        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col h-[calc(100vh-140px)] overflow-y-auto">
-          
+        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 flex flex-col min-w-0 h-auto lg:h-[calc(100vh-140px)] overflow-y-auto">
+
           {dossier ? (
             <div>
-              
+
               {/* Patient Banner */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 pb-5 mb-6 gap-4">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h2 className="text-2xl font-black text-slate-900">
-                      {dossier.patient?.full_name || 'Patient Case File'}
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                      {isPrivacyMode ? 'Patient Confidential' : currentPatientName}
                     </h2>
                     <span className="text-xs bg-slate-100 text-slate-700 font-mono font-bold px-2.5 py-1 rounded-lg border border-slate-300">
-                      ABHA: {dossier.patient?.abha_id || '91-XXXX-XXXX-XXXX'}
+                      ABHA: {currentAbha}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Age: <strong>{dossier.patient?.age} Yrs</strong> • Gender: <strong>{dossier.patient?.gender}</strong> • Phone: <strong>{dossier.patient?.phone}</strong> • OPD Token: <strong className="text-sky-700">{dossier.session?.opd_token_number}</strong>
+                    Age: <strong>{isPrivacyMode ? '**' : (currentAge ? `${currentAge} Yrs` : 'N/A')}</strong> • Gender: <strong>{currentGender || 'N/A'}</strong> • Phone: <strong>{isPrivacyMode ? '***' : currentPhone}</strong> • OPD Token: <strong className="text-sky-700 font-mono font-bold">{isPrivacyMode ? '***' : currentToken}</strong>
                   </p>
                 </div>
 
@@ -551,9 +672,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <div className="flex border-b border-slate-200 space-x-6 mb-6 text-sm font-bold">
                 <button
                   onClick={() => setActiveTab('clinical')}
-                  className={`pb-3 transition flex items-center space-x-2 ${
-                    activeTab === 'clinical' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'clinical' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
+                    }`}
                 >
                   <Activity className="w-4 h-4" />
                   <span>Clinical Case & HPI</span>
@@ -562,9 +682,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                 {dossier.session?.clinical_system === 'ayush' && (
                   <button
                     onClick={() => setActiveTab('ayush')}
-                    className={`pb-3 transition flex items-center space-x-2 ${
-                      activeTab === 'ayush' ? 'border-b-2 border-teal-600 text-teal-700' : 'text-slate-500 hover:text-slate-800'
-                    }`}
+                    className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'ayush' ? 'border-b-2 border-teal-600 text-teal-700' : 'text-slate-500 hover:text-slate-800'
+                      }`}
                   >
                     <Flower2 className="w-4 h-4" />
                     <span>AYUSH Dashavidha Pariksha</span>
@@ -573,9 +692,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
                 <button
                   onClick={() => setActiveTab('timeline')}
-                  className={`pb-3 transition flex items-center space-x-2 ${
-                    activeTab === 'timeline' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'timeline' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
+                    }`}
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Document Timeline ({dossier.documents?.length || 0})</span>
@@ -583,9 +701,8 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
                 <button
                   onClick={() => setActiveTab('notes')}
-                  className={`pb-3 transition flex items-center space-x-2 ${
-                    activeTab === 'notes' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  className={`pb-3 transition flex items-center space-x-2 ${activeTab === 'notes' ? 'border-b-2 border-sky-600 text-sky-700' : 'text-slate-500 hover:text-slate-800'
+                    }`}
                 >
                   <Edit3 className="w-4 h-4" />
                   <span>Doctor Notes & Verification</span>
@@ -595,7 +712,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               {/* TAB 1: CLINICAL CASE & HPI */}
               {activeTab === 'clinical' && (
                 <div className="space-y-6">
-                  
+
                   {/* Chief Complaint */}
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Chief Complaint</span>
@@ -614,7 +731,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
 
                   {/* Grid of Medical, Drug, Allergy & Family History */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
+
                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Past Medical History</span>
                       <p className="text-sm font-semibold text-slate-800 mt-1">
@@ -667,7 +784,7 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    
+
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                       <span className="font-bold text-slate-500 uppercase">1. Sharirika Prakriti (Body Build)</span>
                       <div className="font-bold text-slate-900 text-sm mt-1">
@@ -789,49 +906,93 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
                 </div>
               )}
 
-              {/* TAB 4: DOCTOR NOTES & VERIFICATION */}
+              {/* TAB 4: MEDICAL REPORT & VERIFICATION */}
               {activeTab === 'notes' && (
                 <div className="space-y-6">
-                  
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                      Editable Clinical Summary (Doctor Review)
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={editedHpi}
-                      onChange={(e) => setEditedHpi(e.target.value)}
-                      className="w-full p-4 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none text-sm text-slate-800"
-                    />
+                  {/* Printable Report Section */}
+                  <div id="printable-report" className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 print:shadow-none print:border-none print:p-0">
+                    {/* Header */}
+                    <div className="border-b border-slate-200 pb-6 mb-6">
+                      <h2 className="text-2xl font-black text-slate-900 mb-1">Medical Report Summary</h2>
+                      <p className="text-sm text-slate-500 font-medium">Auto-generated via MediKiosk Triage • {dossier.summary?.date || new Date().toLocaleDateString()}</p>
+                    </div>
+
+                    {/* Patient Demographics */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Patient Name</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '(MASKED)' : currentPatientName}</span>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Age & Gender</span>
+                        <span className="font-semibold text-slate-900 text-sm">{isPrivacyMode ? '**' : (currentAge ? `${currentAge} Yrs` : '')} {currentGender ? `• ${currentGender}` : ''}</span>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">OPD Token</span>
+                        <span className="font-semibold text-sky-700 font-mono text-sm font-bold">{isPrivacyMode ? 'OPD-***' : currentToken}</span>
+                      </div>
+                      <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">System</span>
+                        <span className="font-semibold text-slate-900 text-sm uppercase">{currentSystem}</span>
+                      </div>
+                    </div>
+
+                    {/* Editable Sections */}
+                    <div className="space-y-6">
+                      <div>
+                        <label className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                          <Activity className="w-4 h-4 mr-2 text-sky-600" />
+                          Clinical Summary (HPI)
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={editedHpi}
+                          onChange={(e) => setEditedHpi(e.target.value)}
+                          className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-sky-500 focus:bg-white outline-none text-sm text-slate-800 transition shadow-sm print:border-none print:p-0 print:bg-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                          <AlertOctagon className="w-4 h-4 mr-2 text-amber-500" />
+                          Provisional Diagnosis
+                        </label>
+                        <input
+                          type="text"
+                          value={provisionalDiagnosis}
+                          onChange={(e) => setProvisionalDiagnosis(e.target.value)}
+                          placeholder="e.g. Angina Pectoris / Essential Hypertension"
+                          className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:bg-white outline-none text-sm font-semibold text-slate-900 transition shadow-sm print:border-none print:p-0 print:bg-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                          <Stethoscope className="w-4 h-4 mr-2 text-emerald-600" />
+                          Treatment Plan & Prescription
+                        </label>
+                        <textarea
+                          rows={5}
+                          value={physicianNotes}
+                          onChange={(e) => setPhysicianNotes(e.target.value)}
+                          placeholder="Enter prescription instructions, follow-up tests, or dietary advice..."
+                          className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none text-sm text-slate-800 transition shadow-sm print:border-none print:p-0 print:bg-transparent"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                      Provisional Diagnosis
-                    </label>
-                    <input
-                      type="text"
-                      value={provisionalDiagnosis}
-                      onChange={(e) => setProvisionalDiagnosis(e.target.value)}
-                      placeholder="e.g. Angina Pectoris / Essential Hypertension"
-                      className="w-full p-3.5 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none text-sm font-semibold"
-                    />
-                  </div>
+                  {/* Actions (Hidden on Print) */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200 print:hidden">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl transition flex items-center space-x-2"
+                    >
+                      <Printer className="w-5 h-5" />
+                      <span>Print PDF Report</span>
+                    </button>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                      Physician Treatment Plan & Prescription Notes
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={physicianNotes}
-                      onChange={(e) => setPhysicianNotes(e.target.value)}
-                      placeholder="Enter prescription instructions, follow-up tests (ECG, Troponin), or dietary advice..."
-                      className="w-full p-4 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none text-sm text-slate-800"
-                    />
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-200 flex justify-end">
                     <button
                       disabled={isSigning}
                       onClick={handleVerifySign}
@@ -887,15 +1048,53 @@ export default function DoctorDashboard({ onSwitchToKiosk }) {
               <div><strong>Payload:</strong> FHIR R4 DocumentBundle ({abdmReceipt?.bundleSummary?.entriesCount} entries)</div>
             </div>
 
-            <button
-              onClick={() => setShowAbdmReceipt(false)}
-              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
-            >
-              Close Receipt
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={handleSendSmsReminder}
+                disabled={isSendingSms}
+                className={`w-full py-3.5 font-bold rounded-xl transition flex items-center justify-center space-x-2 ${
+                  isSendingSms 
+                    ? 'bg-blue-400 cursor-not-allowed text-white' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
+                }`}
+              >
+                <Smartphone className="w-5 h-5" />
+                <span>{isSendingSms ? 'Sending SMS...' : 'Send Visit Reminder SMS'}</span>
+              </button>
+              
+              {smsStatus && (
+                <div className={`p-3 rounded-lg text-sm font-medium ${
+                  smsStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {smsStatus.msg}
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowAbdmReceipt(false)}
+                className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
+              >
+                Close Receipt
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* ABDM + Hybrid Blockchain Inter-Hospital Exchange Modal */}
+      <AbdmBlockchainTransferModal
+        isOpen={showAbdmBlockchainModal}
+        onClose={() => setShowAbdmBlockchainModal(false)}
+        selectedPatient={{
+          ...dossierPatient,
+          full_name: currentPatientName,
+          age: currentAge,
+          gender: currentGender,
+          abha_id: currentAbha,
+          chief_complaint: dossier?.summary?.chief_complaint || dossierSession?.chief_complaint || 'OPD Intake'
+        }}
+        fhirBundle={fhirBundle}
+      />
 
     </div>
   );
