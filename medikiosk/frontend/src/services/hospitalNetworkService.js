@@ -121,7 +121,7 @@ export const REGISTERED_HOSPITALS = [
   }
 ];
 
-// 2. Patient Directory for Demo Lookups
+// 2. Patient Directory for Demo Lookups & Registered ABDM Profiles
 export const DEMO_PATIENTS = [
   {
     abhaId: '91-2345-6789-0123',
@@ -155,6 +155,61 @@ export const DEMO_PATIENTS = [
     address: 'Pocket B, Mayur Vihar Phase 1, New Delhi',
     abdmLinkedDate: '18 Aug 2024',
     photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    abhaId: '91-3322-7788-9900',
+    name: 'Priya Verma',
+    age: 29,
+    gender: 'Female',
+    bloodGroup: 'AB+',
+    phone: '+91 98450 67890',
+    address: 'B-14, Green Park Main, New Delhi',
+    abdmLinkedDate: '14 Feb 2025',
+    photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    abhaId: '91-1122-3344-5566',
+    name: 'Rajesh Kumar',
+    age: 58,
+    gender: 'Male',
+    bloodGroup: 'B-',
+    phone: '+91 97110 54321',
+    address: 'C-7, Greater Kailash I, New Delhi',
+    abdmLinkedDate: '09 Nov 2024',
+    photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    abhaId: '91-6677-8899-0011',
+    name: 'Meera Nambiar',
+    age: 36,
+    gender: 'Female',
+    bloodGroup: 'O-',
+    phone: '+91 98200 11223',
+    address: 'A-22, Hauz Khas Enclave, New Delhi',
+    abdmLinkedDate: '22 Mar 2025',
+    photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    abhaId: '91-4455-6677-2233',
+    name: 'Aarav Gupta',
+    age: 8,
+    gender: 'Male',
+    bloodGroup: 'A+',
+    phone: '+91 99100 88776',
+    address: 'Flat 402, Vasant Kunj Sector D, New Delhi',
+    abdmLinkedDate: '10 Jan 2025',
+    photo: 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    abhaId: '91-7788-9900-3344',
+    name: 'Fatima Sheikh',
+    age: 47,
+    gender: 'Female',
+    bloodGroup: 'B+',
+    phone: '+91 98711 22334',
+    address: 'M-18, Defence Colony, New Delhi',
+    abdmLinkedDate: '03 Dec 2024',
+    photo: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80'
   }
 ];
 
